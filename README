@@ -8,4 +8,4 @@ rmiregistry 6090 &
 java -Djava.rmi.server.hostname=localhost  -cp classes HelloServer 6090
 
 //launch the client
-java -cp classes/ HelloClient localhost 6090
+java -cp classes/ HelloClient localhost 6090 <nom_client>

@@ -13,5 +13,17 @@ public  class HelloImpl implements Hello {
 		System.out.println("Le client " + clientName + " a appelé la méthode sayHello()");
 		return message ;
 	}
+
+	public String sayHello(Info_itf client) throws RemoteException {
+		String clientName = "";
+		try{
+			clientName = client.getName();
+		}
+		catch (RemoteException e) {
+			System.err.println("Impossible d'obtenir le nom du client : " + e);
+		}
+		System.out.println("Le client " + clientName + " a appelé la méthode sayHello()");
+		return message ;
+	}
 }
 
