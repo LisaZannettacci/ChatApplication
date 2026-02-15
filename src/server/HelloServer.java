@@ -8,21 +8,21 @@ import java.rmi.registry.*;
 public class HelloServer {
 
   public static void  main(String [] args) {
-	  try {
-		// Create a Hello remote object
-	    // HelloImpl h = new HelloImpl ("Hello world !");
-	    // Hello h_stub = (Hello) UnicastRemoteObject.exportObject(h, 0);
-
-
+	  try {		
 		Hello2Impl h2 = new Hello2Impl("Hello world 2 !");
+
+		// Le Runtime RMI crée des threads réseau qui attendent les requêtes clients,
+		// Ces threads sont "non-deamon" càd que la JVM ne s'arrête pas tant que ces threads sont actifs (=> même si fin du main)
 		UnicastRemoteObject.exportObject(h2, 0);
 
-	    // Register the remote object in RMI registry with a given identifier
 	    Registry registry = null;
-	    if (args.length>0)
+	    if (args.length>0) {
 		    registry= LocateRegistry.getRegistry(Integer.parseInt(args[0])); 
-	    else
+	    } else {
 		    registry = LocateRegistry.getRegistry();
+	    }
+
+		// On publie nos services :
 	    registry.rebind("Hello2Service", h2);
 		registry.rebind("RegistryService", h2);
 

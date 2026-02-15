@@ -17,5 +17,5 @@ Execution :
 
 ```bash
 java -Djava.rmi.server.hostname=localhost -cp classes server.HelloServer 6090
-java -cp classes client.HelloClient2 localhost 6090 <nom_client> <nb_appels>
+java -cp classes client.HelloClient2 localhost 6090 <nom_client>
 ```
