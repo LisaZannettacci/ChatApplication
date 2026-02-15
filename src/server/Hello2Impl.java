@@ -16,6 +16,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
     private final Map<Integer, Accounting_itf> map_id_stubClient; // Associe un identifiant client à son stub (pour les callbacks).
     private final Map<Integer, String> map_id_pseudo; // Associe un identifiant client à son pseudo (pour les notifications et messages).
     private final Map<Integer, Integer> map_nb_sayHello_id; // Associe un identifiant client à son nombre d'appels sayHello.
+    private final ServerStateStore stateStore;
     private int nextClientId;
     private int LIMITE_AVANT_NOTIFICATION = 10;
 
@@ -25,7 +26,17 @@ public class Hello2Impl implements Hello2, Registry_itf {
         this.map_id_stubClient = new HashMap<>();
         this.map_id_pseudo = new HashMap<>();
         this.map_nb_sayHello_id = new HashMap<>();
-        this.nextClientId = 1;
+        this.stateStore = new ServerStateStore("server_state.json");
+
+        // On restaure uniquement nextClientId + map_id_pseudo.
+        // Les autres maps restent vides au redémarrage (état "en ligne" non persistant).
+        ServerStateStore.LoadedState loaded = stateStore.load();
+        this.nextClientId = loaded.getNextClientId();
+        this.map_id_pseudo.putAll(loaded.getMapIdPseudo());
+
+        System.out.println(
+            "Etat charge: " + map_id_pseudo.size() + " client(s) connu(s), prochain id=" + nextClientId
+        );
     }
 
     private String normalizeClientName(String clientName, int clientId) {
@@ -51,6 +62,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
             map_id_pseudo.put(newClientId, safeClientName);
             map_nb_sayHello_id.put(newClientId, 0);
             client.setClientId(newClientId);
+            saveState();
 
             System.out.println("Nouveau client enregistré: id=" + newClientId + ", pseudo=" + safeClientName);
             return newClientId;
@@ -119,8 +131,12 @@ public class Hello2Impl implements Hello2, Registry_itf {
         }
 		else { 
 			throw new RemoteException("Client non enregistré");
-		} 
+        }
 		return message;
+    }
+
+    private void saveState() {
+        stateStore.save(nextClientId, map_id_pseudo);
     }
 
     @Override
