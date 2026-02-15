@@ -11,54 +11,102 @@ import interfaces.server.Registry_itf;
 public class Hello2Impl implements Hello2, Registry_itf {
     
     private String message;
-    private final Map<Accounting_itf, Integer> clientIds; // Associe un stub client à un identifiant unique.
-    private final Map<Integer, Accounting_itf> clientsById; // Associe un identifiant client à son stub (pour les callbacks).
-    private final Map<Integer, String> clientNamesById; // Associe un identifiant client à son pseudo (pour les notifications et messages).
-    private final Map<Integer, Integer> clientCalls; // Nombre d'appels sayHello par client.
+
+    private final Map<Accounting_itf, Integer> map_stubClient_id; // Associe un stub client à un identifiant unique.
+    private final Map<Integer, Accounting_itf> map_id_stubClient; // Associe un identifiant client à son stub (pour les callbacks).
+    private final Map<Integer, String> map_id_pseudo; // Associe un identifiant client à son pseudo (pour les notifications et messages).
+    private final Map<Integer, Integer> map_nb_sayHello_id; // Associe un identifiant client à son nombre d'appels sayHello.
     private int nextClientId;
     private int LIMITE_AVANT_NOTIFICATION = 10;
 
     public Hello2Impl(String message) {
         this.message = message;
-        this.clientIds = new HashMap<>();
-        this.clientsById = new HashMap<>();
-        this.clientNamesById = new HashMap<>();
-        this.clientCalls = new HashMap<>();
+        this.map_stubClient_id = new HashMap<>();
+        this.map_id_stubClient = new HashMap<>();
+        this.map_id_pseudo = new HashMap<>();
+        this.map_nb_sayHello_id = new HashMap<>();
         this.nextClientId = 1;
     }
 
+    private String normalizeClientName(String clientName, int clientId) {
+        // trim() => on supprime les espaces en début et fin de chaîne.
+        return (clientName == null || clientName.trim().isEmpty())
+            ? "Client-" + clientId
+            : clientName.trim();
+    }
+
     @Override
-    public synchronized int register(Accounting_itf client, String clientName) throws RemoteException {
+    public synchronized int register(Accounting_itf client, String clientName, int requestedClientId) throws RemoteException {
         if (client == null) {
             throw new RemoteException("Client null");
         }
-        if (clientIds.containsKey(client)) {
-            return clientIds.get(client);
+
+        // Cas 1: première connexion (id=0) -> le serveur attribue un nouvel ID.
+        if (requestedClientId == 0) {
+            int newClientId = nextClientId++;
+            String safeClientName = normalizeClientName(clientName, newClientId);
+
+            map_stubClient_id.put(client, newClientId);
+            map_id_stubClient.put(newClientId, client);
+            map_id_pseudo.put(newClientId, safeClientName);
+            map_nb_sayHello_id.put(newClientId, 0);
+            client.setClientId(newClientId);
+
+            System.out.println("Nouveau client enregistré: id=" + newClientId + ", pseudo=" + safeClientName);
+            return newClientId;
         }
-        int clientId = nextClientId++;
-        
-        // On met à jour le pseudo de l'utilisateur.
-        // trim() => on supprime les espaces en début et fin de chaîne.
-        String safeClientName = (clientName == null || clientName.trim().isEmpty())
-            ? "Client-" + clientId
-            : clientName.trim();
 
-        clientIds.put(client, clientId);
-        clientsById.put(clientId, client);
-        clientNamesById.put(clientId, safeClientName);
-        clientCalls.put(clientId, 0);
-        client.setClientId(clientId);
+        // Cas 2: reconnexion demandée avec un ID existant (>0).
+        // On rejette les valeurs négatives.
+        if (requestedClientId < 0) {
+            throw new RemoteException("ID client invalide: " + requestedClientId);
+        }
 
-        System.out.println("Nouveau client enregistré: id=" + clientId + ", pseudo=" + safeClientName);
-        return clientId;
+        // L'ID doit déjà exister: sinon c'est une usurpation ou une erreur utilisateur.
+        if (!map_id_pseudo.containsKey(requestedClientId)) {
+            throw new RemoteException("ID client inconnu: " + requestedClientId + ". Utiliser 0 pour une première connexion.");
+        }
+
+        // Vérification d'appartenance ID <-> pseudo.
+        // Un client ne peut pas se connecter avec l'ID d'un autre pseudo.
+        String requestedName = normalizeClientName(clientName, requestedClientId);
+        String ownerName = map_id_pseudo.get(requestedClientId);
+        if (!ownerName.equals(requestedName)) {
+            throw new RemoteException(
+                "ID " + requestedClientId + " appartient à '" + ownerName + "'. Utilisez votre propre ID ou 0.");
+        }
+
+        // Si un stub actif est déjà branché à cet ID, on refuse la 2e session concurrente.
+        Accounting_itf previousStub = map_id_stubClient.get(requestedClientId);
+        if (previousStub != null && previousStub != client) {
+            throw new RemoteException("ID déjà connecté: " + requestedClientId + ". Déconnectez d'abord l'autre session.");
+        }
+
+        // Si ce stub était lié à un autre ID, on retire l'ancienne relation.
+        Integer previousIdForThisStub = map_stubClient_id.get(client);
+        if (previousIdForThisStub != null && previousIdForThisStub != requestedClientId) {
+            map_id_stubClient.remove(previousIdForThisStub);
+        }
+
+        // Mise à jour des maps pour activer la session.
+        map_stubClient_id.put(client, requestedClientId);
+        map_id_stubClient.put(requestedClientId, client);
+        map_id_pseudo.put(requestedClientId, ownerName);
+        map_nb_sayHello_id.putIfAbsent(requestedClientId, 0);
+
+        // On appelle la méthode de callback du client pour lui transmettre son ID.
+        client.setClientId(requestedClientId);
+
+        System.out.println("Client reconnecté: id=" + requestedClientId + ", pseudo=" + map_id_pseudo.get(requestedClientId));
+        return requestedClientId;
     }
     
     @Override
     public synchronized String sayHello(Accounting_itf client) throws RemoteException {
-        if (client != null && clientIds.containsKey(client)) {
-            int clientId = clientIds.get(client);
-            int nb_appels = clientCalls.get(clientId) + 1;
-            clientCalls.put(clientId, nb_appels);
+        if (client != null && map_stubClient_id.containsKey(client)) {
+            int clientId = map_stubClient_id.get(client);
+            int nb_appels = map_nb_sayHello_id.get(clientId) + 1;
+            map_nb_sayHello_id.put(clientId, nb_appels);
 
             if (nb_appels % LIMITE_AVANT_NOTIFICATION == 0) {
                 try {
@@ -77,10 +125,11 @@ public class Hello2Impl implements Hello2, Registry_itf {
 
     @Override
     public synchronized String sendDirectMessage(int fromClientId, int toClientId, String message) throws RemoteException {
-        if (!clientsById.containsKey(fromClientId)) {
+        // from/to doivent exister en tant qu'identités connues.
+        if (!map_id_pseudo.containsKey(fromClientId)) {
             throw new RemoteException("Expéditeur inconnu: id=" + fromClientId);
         }
-        if (!clientsById.containsKey(toClientId)) {
+        if (!map_id_pseudo.containsKey(toClientId)) {
             throw new RemoteException("Destinataire inconnu: id=" + toClientId);
         }
         String content = (message == null) ? "" : message.trim();
@@ -88,12 +137,33 @@ public class Hello2Impl implements Hello2, Registry_itf {
             throw new RemoteException("Le message ne peut pas être vide.");
         }
 
-        Accounting_itf targetClient = clientsById.get(toClientId);
-        String fromClientName = clientNamesById.get(fromClientId);
-        String toClientName = clientNamesById.get(toClientId);
+        Accounting_itf targetClient = map_id_stubClient.get(toClientId);
+        String fromClientName = map_id_pseudo.get(fromClientId);
+        String toClientName = map_id_pseudo.get(toClientId);
+        if (targetClient == null) {
+            throw new RemoteException("Destinataire hors ligne: " + toClientName + " (id=" + toClientId + ").");
+        }
 
-        // On appelle la méthode de callback du client destinataire pour lui transmettre le message.
-        targetClient.receiveMessage(fromClientId, fromClientName, content);
+        // Callback vers le client destinataire.
+        // Si l'appel échoue, on considère son stub obsolète et on le retire des maps actives.
+        try {
+            targetClient.receiveMessage(fromClientId, fromClientName, content);
+        } catch (RemoteException e) {
+            map_id_stubClient.remove(toClientId);
+            map_stubClient_id.remove(targetClient);
+            throw new RemoteException("Destinataire hors ligne: " + toClientName + " (id=" + toClientId + ").", e);
+        }
         return "Message envoyé à " + toClientName + " (id=" + toClientId + ").";
+    }
+
+    @Override
+    public synchronized void disconnect(int clientId) throws RemoteException {
+        // Déconnexion : on supprime uniquement l'état "en ligne".
+        // On conserve map_id_pseudo pour permettre la reconnexion avec le même ID.
+        Accounting_itf oldStub = map_id_stubClient.remove(clientId);
+        if (oldStub != null) {
+            map_stubClient_id.remove(oldStub);
+            System.out.println("Client déconnecté: id=" + clientId + ", pseudo=" + map_id_pseudo.get(clientId));
+        }
     }
 }

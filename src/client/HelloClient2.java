@@ -46,6 +46,20 @@ public class HelloClient2 implements Accounting_itf {
                 "Choix : ");
     }
 
+    private static String extractRemoteMessage(RemoteException e) {
+        Throwable current = e;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        if (current.getMessage() != null && !current.getMessage().trim().isEmpty()) {
+            return current.getMessage();
+        }
+        if (e.getMessage() != null && !e.getMessage().trim().isEmpty()) {
+            return e.getMessage();
+        }
+        return "Erreur distante.";
+    }
+
     private static void runMenu(HelloClient2 client, Hello2 h2) {
         Scanner scanner = new Scanner(System.in);
         boolean running = true;
@@ -64,7 +78,7 @@ public class HelloClient2 implements Accounting_itf {
                     } catch (NumberFormatException e) {
                         System.out.println("ID invalide.");
                     } catch (RemoteException e) {
-                        System.out.println("Échec d'envoi : " + e.getMessage());
+                        System.out.println("Échec d'envoi : " + extractRemoteMessage(e));
                     }
                     break;
                 case "2":
@@ -77,6 +91,11 @@ public class HelloClient2 implements Accounting_itf {
                     System.out.println("Fonctionnalité non implémentée pour le moment.");
                     break;
                 case "0":
+                    try {
+                        h2.disconnect(client.clientId);
+                    } catch (RemoteException e) {
+                        System.out.println("Déconnexion côté serveur incomplète : " + e.getMessage());
+                    }
                     running = false;
                     System.out.println("Déconnexion...");
                     break;
@@ -88,13 +107,15 @@ public class HelloClient2 implements Accounting_itf {
 
     public static void main(String [] args) {
 		try {
-            if (args.length < 3) {
-                System.out.println("Usage: java HelloClient2 <rmiregistry host> <rmiregistry port> <client name>");
+            if (args.length < 4) {
+                System.out.println("Usage: java HelloClient2 <rmiregistry host> <rmiregistry port> <client name> <client id>");
+                System.out.println("Si c'est votre première connexion, utilisez l'id 0 !");
                 return;
             }
 
             String host = args[0];
             int port = Integer.parseInt(args[1]);
+            int requestedClientId = Integer.parseInt(args[3]);
 
             // Le client récupère le registre RMI.
             Registry registry = LocateRegistry.getRegistry(host, port);
@@ -126,8 +147,19 @@ public class HelloClient2 implements Accounting_itf {
                 return;
             }
 
-            // Le client s'enregistre auprès du serveur pour obtenir un identifiant unique
-            int assignedId = registry_stub.register(client_stub, client.name);
+            // Le client s'enregistre/se connecte au serveur.
+            int assignedId;
+            try {
+                assignedId = registry_stub.register(client_stub, client.name, requestedClientId);
+            } catch (RemoteException e) {
+                System.out.println("Connexion refusée : " + extractRemoteMessage(e));
+                System.out.println("Utilisez l'id 0 si c'est votre première connexion.");
+                try {
+                    UnicastRemoteObject.unexportObject(client, true);
+                } catch (Exception ignored) {
+                }
+                return;
+            }
             if (client.clientId <= 0) {
                 client.clientId = assignedId;
             }

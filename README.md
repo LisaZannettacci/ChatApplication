@@ -17,5 +17,9 @@ Execution :
 
 ```bash
 java -Djava.rmi.server.hostname=localhost -cp classes server.HelloServer 6090
-java -cp classes client.HelloClient2 localhost 6090 <nom_client>
+java -cp classes client.HelloClient2 localhost 6090 <nom_client> <id_client>
 ```
+
+`id_client`:
+- `0` pour une première connexion (le serveur renvoie un nouvel ID)
+- l'ID attribué précédemment pour une reconnexion
