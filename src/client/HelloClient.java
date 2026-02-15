@@ -1,6 +1,10 @@
+package client;
+
 import java.rmi.*;
 import java.rmi.registry.*;
 import java.rmi.server.*;
+import interfaces.client.Info_itf;
+import interfaces.server.Hello;
 
 public class HelloClient{
   public static void main(String [] args) {

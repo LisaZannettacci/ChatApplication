@@ -1,4 +1,3 @@
-# ...existing code...
 #!/bin/bash
 set -euo pipefail
 
@@ -9,27 +8,26 @@ LIB="$BASE/lib"
 
 mkdir -p "$CLASSES" "$LIB"
 
-# clean previous build artifacts
-rm -f "$CLASSES"/*.class "$LIB"/*.jar || true
+# Clean previous build artifacts.
+find "$CLASSES" -type f -name '*.class' -delete
+rm -f "$LIB"/*.jar || true
 
-# compile all sources
-javac -d "$CLASSES" -classpath "$CLASSES":lib/* "$SRC"/*.java
+# Compile every Java source recursively.
+javac -d "$CLASSES" -classpath "$CLASSES:$LIB/*" $(find "$SRC" -type f -name '*.java' | sort)
 
-# create jars (only include files that exist)
+# Create jars by concern.
 cd "$CLASSES"
-jar --create --file "$LIB/Hello.jar"  Hello.class Info_itf.class Registry_itf.class Accounting_itf.class 2>/dev/null || true
-jar --create --file "$LIB/HelloImpl.jar" HelloImpl.class Hello2Impl.class 2>/dev/null || true
-jar --create --file "$LIB/Hello2.jar" Hello2.class Hello2Impl.class 2>/dev/null || true
+jar --create --file "$LIB/interfaces.jar" interfaces/client/*.class interfaces/server/*.class 2>/dev/null || true
+jar --create --file "$LIB/server.jar" server/*.class 2>/dev/null || true
+jar --create --file "$LIB/client.jar" client/*.class 2>/dev/null || true
 cd "$BASE"
 
-# export classpath for running servers/clients
+# Export classpath for running servers/clients.
 export CLASSPATH="$CLASSES:$LIB/*${CLASSPATH:+:$CLASSPATH}"
 
-# restart rmiregistry on port 6090
+# Restart rmiregistry on port 6090.
 pkill -f "rmiregistry 6090" || true
 sleep 1
-# start rmiregistry with project classpath
 CLASSPATH="$CLASSES:$LIB/*" nohup rmiregistry 6090 >/dev/null 2>&1 &
 
 echo "Build complete."
-# ...existing code...

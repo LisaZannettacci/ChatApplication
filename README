@@ -1,11 +1,26 @@
-//put the classpath righ
-export CLASSPATH=$CLASSPATH:<yourpath>/classes
+ChatApplication (Java RMI)
+==========================
 
-//launch rmiregistry on mandelbrot on port 6090
-rmiregistry 6090 &
+Structure actuelle du code source :
 
-//launch the server
-java -Djava.rmi.server.hostname=localhost  -cp classes HelloServer 6090
+- src/client
+  - Implémentations côté client (`HelloClient`, `HelloClient2`, `InfoImpl`)
+- src/server
+  - Implémentations côté serveur (`HelloServer`, `HelloImpl`, `Hello2Impl`)
+- src/interfaces/client
+  - Interfaces distantes implémentées par le client (callbacks)
+- src/interfaces/server
+  - Interfaces distantes implémentées par le serveur
 
-//launch the client
-java -cp classes/ HelloClient localhost 6090 <nom_client>
+Compilation :
+
+```bash
+bash compilation.sh
+```
+
+Lancement (après compilation) :
+
+```bash
+java -Djava.rmi.server.hostname=localhost -cp classes server.HelloServer 6090
+java -cp classes client.HelloClient2 localhost 6090 <nom_client> <nb_appels>
+```

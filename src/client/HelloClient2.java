@@ -1,6 +1,11 @@
+package client;
+
 import java.rmi.*;
 import java.rmi.registry.*;
 import java.rmi.server.*;
+import interfaces.client.Accounting_itf;
+import interfaces.server.Hello2;
+import interfaces.server.Registry_itf;
 
 public class HelloClient2 implements Accounting_itf {
 

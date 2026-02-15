@@ -1,5 +1,9 @@
 
+package server;
+
 import java.rmi.*;
+import interfaces.client.Info_itf;
+import interfaces.server.Hello;
 
 public  class HelloImpl implements Hello {
 
@@ -26,4 +30,3 @@ public  class HelloImpl implements Hello {
 		return message ;
 	}
 }
-

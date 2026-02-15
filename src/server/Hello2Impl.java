@@ -1,5 +1,10 @@
+package server;
+
 import java.rmi.*;
 import java.util.*;
+import interfaces.client.Accounting_itf;
+import interfaces.server.Hello2;
+import interfaces.server.Registry_itf;
 
 // Côté serveur
 public class Hello2Impl implements Hello2, Registry_itf {
