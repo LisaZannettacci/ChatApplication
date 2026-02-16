@@ -173,6 +173,37 @@ public class Hello2Impl implements Hello2, Registry_itf {
     }
 
     @Override
+    public synchronized String sendGeneralMessage(int fromClientId, String message) throws RemoteException {
+        if (!map_id_pseudo.containsKey(fromClientId)) {
+            throw new RemoteException("Expéditeur inconnu: id=" + fromClientId);
+        }
+        String content = (message == null) ? "" : message.trim();
+        if (content.isEmpty()) {
+            throw new RemoteException("Le message ne peut pas être vide.");
+        }
+
+        String fromClientName = map_id_pseudo.get(fromClientId);
+
+        for (Integer toClientId : map_id_pseudo.keySet()) {
+            if (toClientId != fromClientId) {
+                Accounting_itf targetClient = map_id_stubClient.get(toClientId);
+                String toClientName = map_id_pseudo.get(toClientId);
+                if (targetClient == null) {
+                    throw new RemoteException("Destinataire hors ligne: " + toClientName + " (id=" + toClientId + ").");
+                }
+                try {
+                    targetClient.receiveGeneralMessage(fromClientId, fromClientName, content);
+                } catch (RemoteException e) {
+                    map_id_stubClient.remove(toClientId);
+                    map_stubClient_id.remove(targetClient);
+                    throw new RemoteException("Destinataire hors ligne: " + toClientName + " (id=" + toClientId + ").", e);
+                }
+            }
+        }
+        return "Message envoyé à tous les clients connectés.";
+    }
+
+    @Override
     public synchronized void disconnect(int clientId) throws RemoteException {
         // Déconnexion : on supprime uniquement l'état "en ligne".
         // On conserve map_id_pseudo pour permettre la reconnexion avec le même ID.

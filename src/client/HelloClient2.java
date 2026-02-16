@@ -32,16 +32,22 @@ public class HelloClient2 implements Accounting_itf {
         System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ")] " + message);
     }
 
+    @Override
+    public void receiveGeneralMessage(int fromClientId, String fromClientName, String message) throws RemoteException {
+        System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ") sur le tchat général] " + message);
+    }
+
     private static void displayMenu() {
         System.out.println("\n==== MENU ====\n" +
-                "1. Envoyer message\n" +
-                "2. Créer groupe\n" +
-                "3. Supprimer groupe\n" +
-                "4. Supprimer membre d'un groupe\n" +
-                "5. Ajouter membre à un groupe\n" +
-                "6. Changer pseudo\n" +
-                "7. Changer nom de groupe\n" +
-                "8. Infos groupe\n" +
+                "1. Envoyer message au tchat général\n" +
+                "2. Envoyer message\n" +
+                "3. Créer groupe\n" +
+                "4. Supprimer groupe\n" +
+                "5. Supprimer membre d'un groupe\n" +
+                "6. Ajouter membre à un groupe\n" +
+                "7. Changer pseudo\n" +
+                "8. Changer nom de groupe\n" +
+                "9. Infos groupe\n" +
                 "0. Quitter\n" +
                 "Choix : ");
     }
@@ -67,7 +73,19 @@ public class HelloClient2 implements Accounting_itf {
             displayMenu();
             String choice = scanner.nextLine().trim();
             switch (choice) {
-                case "1":
+                case "1":{
+                    try {
+                        System.out.print("Message : ");
+                        String content = scanner.nextLine();
+                        String status = h2.sendGeneralMessage(client.clientId, content);
+                        System.out.println(status);
+                    } catch (RemoteException e) {
+                        System.out.println("Échec d'envoi : " + extractRemoteMessage(e));
+                    }
+
+                    break;
+                }
+                case "2":{
                     try {
                         System.out.print("ID du client destinataire : ");
                         int targetId = Integer.parseInt(scanner.nextLine().trim());
@@ -81,13 +99,14 @@ public class HelloClient2 implements Accounting_itf {
                         System.out.println("Échec d'envoi : " + extractRemoteMessage(e));
                     }
                     break;
-                case "2":
+                }
                 case "3":
                 case "4":
                 case "5":
                 case "6":
                 case "7":
                 case "8":
+                case "9":
                     System.out.println("Fonctionnalité non implémentée pour le moment.");
                     break;
                 case "0":
