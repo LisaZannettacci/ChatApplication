@@ -46,6 +46,15 @@ public class HelloClient2 implements Accounting_itf {
             return;
         }
         System.out.println("\n--- RÉCUPÉRATION DE L'HISTORIQUE (" + convId + ") ---");
+        boolean hasNewMessages = false;
+        if (history != null) {
+            for (TchatMessage msg : history) {
+                if (msg.id > cursor) {
+                    hasNewMessages = true;
+                    break;
+                }
+            }
+        }
         
         for (TchatMessage msg : history) {
             // C'est ici qu'on décide du format : [Pseudo] Message
@@ -54,7 +63,12 @@ public class HelloClient2 implements Accounting_itf {
             } else {
                 if (displayAll) {
                     // On affiche tous les messages, même ceux déjà lus
-                    System.out.println("          [" + msg.senderName + "] " + msg.content);
+                    if (!hasNewMessages) {
+                        System.out.println("[" + msg.senderName + "] " + msg.content);
+                    }
+                    else {
+                        System.out.println("          [" + msg.senderName + "] " + msg.content);
+                    }
                 }
             }
         }
@@ -273,8 +287,9 @@ public class HelloClient2 implements Accounting_itf {
             // Récupération de l'historique général à la connexion
             try {
                 // On demande l'historique pour la salle "GENERAL"
+                int cursor = h2.getCursor(client.clientId, "GENERAL");
                 java.util.List<TchatMessage> generalHistory = h2.getHistory(client.clientId, "GENERAL");
-                displayHistory(generalHistory, "GENERAL", -1, true);
+                displayHistory(generalHistory, "GENERAL", cursor, true);
             } catch (RemoteException e) {
                 System.err.println("Impossible de récupérer l'historique : " + e.getMessage());
             }

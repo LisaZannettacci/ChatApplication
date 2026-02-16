@@ -39,11 +39,13 @@ public class Hello2Impl implements Hello2, Registry_itf {
         this.map_nb_sayHello_id = new HashMap<>();
         this.stateStore = new ServerStateStore("server_state.json");
 
-        // On restaure uniquement nextClientId + map_id_pseudo.
+        // On restaure uniquement nextClientId, map_id_pseudo, allHistories et readCursors.
         // Les autres maps restent vides au redémarrage (état "en ligne" non persistant).
         ServerStateStore.LoadedState loaded = stateStore.load();
         this.nextClientId = loaded.getNextClientId();
         this.map_id_pseudo.putAll(loaded.getMapIdPseudo());
+        this.allHistories.putAll(loaded.getAllHistories());
+        this.readCursors.putAll(loaded.getReadCursors());
 
         System.out.println(
             "Etat charge: " + map_id_pseudo.size() + " client(s) connu(s), prochain id=" + nextClientId
@@ -159,7 +161,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
     }
 
     private void saveState() {
-        stateStore.save(nextClientId, map_id_pseudo);
+        stateStore.save(nextClientId, map_id_pseudo, allHistories, readCursors);
     }
 
     @Override
@@ -193,6 +195,10 @@ public class Hello2Impl implements Hello2, Registry_itf {
         TchatMessage newMessage = new TchatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
         history.add(newMessage);
 
+        // Puisque l'émetteur vient d'envoyer ce message, on considère qu'il a lu la conversation jusqu'ici.
+        updateCursor(fromClientId, convId, newMessage.id);
+        saveState();
+        
         Accounting_itf targetClient = map_id_stubClient.get(toClientId);
         String fromClientName = map_id_pseudo.get(fromClientId);
         String toClientName = map_id_pseudo.get(toClientId);
@@ -206,6 +212,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
                 map_id_stubClient.remove(toClientId);
             }
         }
+        saveState();
         return "Message envoyé à " + toClientName + " (id=" + toClientId + ").";
     }
 
@@ -230,6 +237,10 @@ public class Hello2Impl implements Hello2, Registry_itf {
         TchatMessage newMessage = new TchatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
         history.add(newMessage);
 
+        // Puisque l'émetteur vient d'envoyer ce message, on considère qu'il a lu la conversation jusqu'ici.
+        updateCursor(fromClientId, convId, newMessage.id);
+        saveState();
+
         String fromClientName = map_id_pseudo.get(fromClientId);
 
         for (Integer toClientId : map_id_pseudo.keySet()) {
@@ -247,6 +258,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
                 }
             }
         }
+        saveState();
         return "Message envoyé à tous les clients connectés.";
     }
 
@@ -259,31 +271,9 @@ public class Hello2Impl implements Hello2, Registry_itf {
         if (!history.isEmpty()) {
             int lastId = history.size() - 1;
             updateCursor(userId, convId, lastId);
+            saveState();
         }
-        
         return history; 
-    }
-
-    @Override
-    public synchronized List<TchatMessage> getNewMessages(int userId, String convId) throws RemoteException {
-        List<TchatMessage> fullHistory = allHistories.getOrDefault(convId, new ArrayList<>());
-        
-        // On cherche où l'utilisateur s'est arrêté
-        Map<Integer, Integer> convCursors = readCursors.getOrDefault(convId, new HashMap<>());
-        int lastReadIndex = convCursors.getOrDefault(userId, -1);
-
-        // S'il a déjà tout lu
-        if (lastReadIndex >= fullHistory.size() - 1) {
-            return new ArrayList<>();
-        }
-
-        // On extrait les messages de (lastReadIndex + 1) jusqu'à la fin
-        List<TchatMessage> newMessages = new ArrayList<>(fullHistory.subList(lastReadIndex + 1, fullHistory.size()));
-        
-        // On met à jour le curseur car il vient de les recevoir
-        updateCursor(userId, convId, fullHistory.size() - 1);
-        
-        return newMessages;
     }
 
     @Override

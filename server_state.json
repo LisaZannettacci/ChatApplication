@@ -1,7 +1,101 @@
 {
-  "nexClientID": 3,
-  "map_id_pseudo": {
+  "nextClientId": 4,
+  "mapIdPseudo": {
     "1": "louis",
-    "2": "justine"
+    "2": "justine",
+    "3": "lisa"
+  },
+  "allHistories": {
+    "GENERAL": [
+      {
+        "id": 0,
+        "senderId": 3,
+        "senderName": "lisa",
+        "content": "salut tout le monde !",
+        "timestamp": 1771262978385
+      },
+      {
+        "id": 1,
+        "senderId": 3,
+        "senderName": "lisa",
+        "content": "vous êtes où ?",
+        "timestamp": 1771263028108
+      },
+      {
+        "id": 2,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "eheh",
+        "timestamp": 1771263256377
+      },
+      {
+        "id": 3,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "vzqwgtfd",
+        "timestamp": 1771263404344
+      },
+      {
+        "id": 4,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "yefgzqhdsbcwn",
+        "timestamp": 1771263477287
+      }
+    ],
+    "2-3": [
+      {
+        "id": 0,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "ça va ?",
+        "timestamp": 1771265650484
+      }
+    ],
+    "1-2": [
+      {
+        "id": 0,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "coucou",
+        "timestamp": 1771262122754
+      },
+      {
+        "id": 1,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "coucou ! ça va ?",
+        "timestamp": 1771262136604
+      },
+      {
+        "id": 2,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "tu fais quoi",
+        "timestamp": 1771262216292
+      },
+      {
+        "id": 3,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "regwsdvfx",
+        "timestamp": 1771262657271
+      }
+    ]
+  },
+  "readCursors": {
+    "GENERAL": {
+      "1": 4,
+      "2": 4,
+      "3": 4
+    },
+    "2-3": {
+      "2": 0,
+      "3": 0
+    },
+    "1-2": {
+      "1": 3,
+      "2": 3
+    }
   }
 }
