@@ -6,6 +6,36 @@
     "3": "lisa"
   },
   "allHistories": {
+    "2-3": [
+      {
+        "id": 0,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "ça va ?",
+        "timestamp": 1771265650484
+      },
+      {
+        "id": 1,
+        "senderId": 3,
+        "senderName": "lisa",
+        "content": "grdfxv",
+        "timestamp": 1771272474828
+      },
+      {
+        "id": 2,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "coucou, ça va ?",
+        "timestamp": 1771272607381
+      },
+      {
+        "id": 3,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "gefzshdbjkcx",
+        "timestamp": 1771272957441
+      }
+    ],
     "GENERAL": [
       {
         "id": 0,
@@ -41,15 +71,13 @@
         "senderName": "justine",
         "content": "yefgzqhdsbcwn",
         "timestamp": 1771263477287
-      }
-    ],
-    "2-3": [
+      },
       {
-        "id": 0,
+        "id": 5,
         "senderId": 2,
         "senderName": "justine",
-        "content": "ça va ?",
-        "timestamp": 1771265650484
+        "content": "0",
+        "timestamp": 1771272446086
       }
     ],
     "1-2": [
@@ -81,21 +109,102 @@
         "content": "regwsdvfx",
         "timestamp": 1771262657271
       }
+    ],
+    "2-2": [
+      {
+        "id": 0,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "coucou",
+        "timestamp": 1771271771350
+      }
+    ],
+    "1-3": [
+      {
+        "id": 0,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "qvgfhsbvwd",
+        "timestamp": 1771272967347
+      },
+      {
+        "id": 1,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "qgewrdfxvf",
+        "timestamp": 1771272973513
+      },
+      {
+        "id": 2,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "regwsdfxbcr",
+        "timestamp": 1771272977619
+      },
+      {
+        "id": 3,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "wrsexdtfgjhkb",
+        "timestamp": 1771273061906
+      },
+      {
+        "id": 4,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "xgdhv ",
+        "timestamp": 1771273064195
+      },
+      {
+        "id": 5,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "egfxdhv",
+        "timestamp": 1771273066357
+      },
+      {
+        "id": 6,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "xgdh",
+        "timestamp": 1771273068169
+      },
+      {
+        "id": 7,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "efd",
+        "timestamp": 1771273069650
+      },
+      {
+        "id": 8,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "fdg",
+        "timestamp": 1771273072092
+      }
     ]
   },
   "readCursors": {
-    "GENERAL": {
-      "1": 4,
-      "2": 4,
-      "3": 4
-    },
     "2-3": {
-      "2": 0,
-      "3": 0
+      "2": 3,
+      "3": 2
+    },
+    "GENERAL": {
+      "1": 5,
+      "2": 5,
+      "3": 5
     },
     "1-2": {
       "1": 3,
       "2": 3
+    },
+    "2-2": {
+      "2": 0
+    },
+    "1-3": {
+      "1": 8,
+      "3": 8
     }
   }
 }

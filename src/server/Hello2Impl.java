@@ -198,7 +198,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
         // Puisque l'émetteur vient d'envoyer ce message, on considère qu'il a lu la conversation jusqu'ici.
         updateCursor(fromClientId, convId, newMessage.id);
         saveState();
-        
+
         Accounting_itf targetClient = map_id_stubClient.get(toClientId);
         String fromClientName = map_id_pseudo.get(fromClientId);
         String toClientName = map_id_pseudo.get(toClientId);
@@ -277,8 +277,8 @@ public class Hello2Impl implements Hello2, Registry_itf {
     }
 
     @Override
-    public synchronized Map<String, Boolean> getConversationsList(int userId) throws RemoteException {
-        Map<String, Boolean> userConvs = new HashMap<>();
+    public synchronized Map<String, Integer> getConversationsList(int userId) throws RemoteException {
+        Map<String, Integer> userConvs = new HashMap<>();
         
         // On parcourt toutes les clés de notre Map d'historiques
         for (String convId : allHistories.keySet()) {
@@ -303,9 +303,9 @@ public class Hello2Impl implements Hello2, Registry_itf {
                     userCursor = convCursors.getOrDefault(userId, -1);
                 }
                 
-                boolean messageUnread = lastMessageId > userCursor;
+                int unreadCount = lastMessageId - userCursor;
 
-                userConvs.put(convId, messageUnread);
+                userConvs.put(convId, unreadCount);
             }
         }
         return userConvs;

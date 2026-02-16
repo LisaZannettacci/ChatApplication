@@ -12,7 +12,7 @@ public interface Hello2 extends Remote {
 	public String sendDirectMessage(int fromClientId, int toClientId, String message) throws RemoteException;
 	public String sendGeneralMessage(int fromClientId, String message) throws RemoteException;
 	public List<TchatMessage> getHistory(int userId, String convId) throws RemoteException;
-	public Map<String, Boolean> getConversationsList(int userId) throws RemoteException;
+	public Map<String, Integer> getConversationsList(int userId) throws RemoteException;
 	public int getCursor(int userId, String convId) throws RemoteException;
 	public void disconnect(int clientId) throws RemoteException;
 }
