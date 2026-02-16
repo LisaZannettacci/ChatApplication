@@ -287,18 +287,35 @@ public class Hello2Impl implements Hello2, Registry_itf {
     }
 
     @Override
-    public synchronized List<String> getConversationsList(int userId) throws RemoteException {
-        List<String> userConvs = new ArrayList<>();
+    public synchronized Map<String, Boolean> getConversationsList(int userId) throws RemoteException {
+        Map<String, Boolean> userConvs = new HashMap<>();
         
         // On parcourt toutes les clés de notre Map d'historiques
         for (String convId : allHistories.keySet()) {
             // Si c'est le tchat général
-            if (convId.equals("GENERAL")) {
-                userConvs.add("GENERAL");
-            } 
-            // Si c'est une conversation privée (ex: "1-2")
-            else if (convId.contains(String.valueOf(userId))) {
-                userConvs.add(convId);
+            if (convId.equals("GENERAL") || convId.contains(String.valueOf(userId))) {
+                
+                List<TchatMessage> history = allHistories.get(convId);
+                int lastMessageId;
+                if (history.isEmpty()){
+                    lastMessageId = -1;
+                }
+                else {
+                    lastMessageId = history.get(history.size() - 1).id;
+                }
+                
+                Map<Integer, Integer> convCursors = readCursors.get(convId);
+                int userCursor;
+                if (convCursors == null) {
+                    userCursor = -1; // personne n'a encore lu cette conversation
+                }
+                else {
+                    userCursor = convCursors.getOrDefault(userId, -1);
+                }
+                
+                boolean messageUnread = lastMessageId > userCursor;
+
+                userConvs.put(convId, messageUnread);
             }
         }
         return userConvs;

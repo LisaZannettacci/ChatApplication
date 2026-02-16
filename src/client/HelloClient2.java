@@ -4,6 +4,7 @@ import java.rmi.*;
 import java.rmi.registry.*;
 import java.rmi.server.*;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 import interfaces.client.Accounting_itf;
 import interfaces.server.Hello2;
@@ -62,12 +63,18 @@ public class HelloClient2 implements Accounting_itf {
 
     private static void displayConversationsList(Hello2 h2, int myId) {
         try {
-            List<String> convs = h2.getConversationsList(myId);
+            Map<String, Boolean> convs = h2.getConversationsList(myId);
             System.out.println("\n=== VOS CONVERSATIONS ===");
             System.out.println("GENERAL (tchat général)");
             if (!convs.isEmpty()) {
-                for (int i = 0; i < convs.size(); i++) {
-                    System.out.println((i + 1) + ". " + convs.get(i));
+                for (Map.Entry<String, Boolean> entry : convs.entrySet()) {
+                    String name = entry.getKey();
+                    Boolean unread = entry.getValue();
+                    
+                    if(unread) {
+                        name += " (MESSAGES NON LUS)";
+                    }
+                    System.out.println("- " + name);
                 }
             }
             System.out.println("=========================\n");
