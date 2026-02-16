@@ -25,10 +25,16 @@ java -Djava.rmi.server.hostname=localhost \
      -cp "lib/*:classes" \
      server.HelloServer 6090
 
+# Clients :
+# Interface textuelle :
 java -cp "lib/*:classes" \
      client.HelloClient2 localhost 6090 <nom_client> <id_client>
-```
 
+# Interface graphique :
+java -cp "lib/*:classes" \
+      client.HelloClient2 localhost 6090 <nom_client> <id_client> --ihm
+
+```
 `id_client` :
 - `0` pour une première connexion (le serveur attribue un nouvel ID)
 - l'ID déjà attribué pour se reconnecter

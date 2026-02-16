@@ -7,4 +7,5 @@ public interface Accounting_itf extends Remote {
 	public void receiveMessage(int fromClientId, String fromClientName, String message) throws RemoteException;
 	public void receiveGeneralMessage(int fromClientId, String fromClientName, String message) throws RemoteException;
 	public void setClientId(int clientId) throws RemoteException;
+	public int getClientId() throws RemoteException;
 }

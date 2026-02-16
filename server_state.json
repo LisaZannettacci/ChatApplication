@@ -1,9 +1,10 @@
 {
-  "nextClientId": 4,
+  "nextClientId": 5,
   "mapIdPseudo": {
     "1": "louis",
     "2": "justine",
-    "3": "lisa"
+    "3": "lisa",
+    "4": "lisa"
   },
   "allHistories": {
     "2-3": [
@@ -34,6 +35,27 @@
         "senderName": "justine",
         "content": "gefzshdbjkcx",
         "timestamp": 1771272957441
+      },
+      {
+        "id": 4,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "egwsdbfx",
+        "timestamp": 1771277106877
+      },
+      {
+        "id": 5,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "fwegxdf",
+        "timestamp": 1771277109498
+      },
+      {
+        "id": 6,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "fwxb",
+        "timestamp": 1771277111133
       }
     ],
     "GENERAL": [
@@ -78,6 +100,76 @@
         "senderName": "justine",
         "content": "0",
         "timestamp": 1771272446086
+      },
+      {
+        "id": 6,
+        "senderId": 4,
+        "senderName": "lisa",
+        "content": "ccoucou !",
+        "timestamp": 1771276348807
+      },
+      {
+        "id": 7,
+        "senderId": 4,
+        "senderName": "lisa",
+        "content": "coucou !!!!!",
+        "timestamp": 1771276360779
+      },
+      {
+        "id": 8,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "dqwsfxdg",
+        "timestamp": 1771277287274
+      },
+      {
+        "id": 9,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "dgvwdfbx",
+        "timestamp": 1771277436296
+      },
+      {
+        "id": 10,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "zefgdf",
+        "timestamp": 1771277903419
+      },
+      {
+        "id": 11,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "defsvb",
+        "timestamp": 1771278113230
+      },
+      {
+        "id": 12,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "eghvj",
+        "timestamp": 1771278391381
+      },
+      {
+        "id": 13,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "wxgdhcfvgh",
+        "timestamp": 1771278843383
+      },
+      {
+        "id": 14,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "fgdh",
+        "timestamp": 1771278906432
+      },
+      {
+        "id": 15,
+        "senderId": 2,
+        "senderName": "justine",
+        "content": "coucou à tous !",
+        "timestamp": 1771279256314
       }
     ],
     "1-2": [
@@ -182,18 +274,75 @@
         "senderName": "louis",
         "content": "fdg",
         "timestamp": 1771273072092
+      },
+      {
+        "id": 9,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "tu fais quoi",
+        "timestamp": 1771276606654
+      },
+      {
+        "id": 10,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "coucou lisa ça va ?",
+        "timestamp": 1771277040773
+      },
+      {
+        "id": 11,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "qgewrfdbx",
+        "timestamp": 1771277091005
+      },
+      {
+        "id": 12,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "fewsgdfxh",
+        "timestamp": 1771277907393
+      },
+      {
+        "id": 13,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "dcsc",
+        "timestamp": 1771278110389
+      },
+      {
+        "id": 14,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "ehfvgj",
+        "timestamp": 1771278389456
+      },
+      {
+        "id": 15,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "exrhcvjb",
+        "timestamp": 1771278841980
+      },
+      {
+        "id": 16,
+        "senderId": 1,
+        "senderName": "louis",
+        "content": "ZWefsgxdhcg",
+        "timestamp": 1771278903899
       }
     ]
   },
   "readCursors": {
     "2-3": {
-      "2": 3,
-      "3": 2
+      "2": 6,
+      "3": 6
     },
     "GENERAL": {
-      "1": 5,
-      "2": 5,
-      "3": 5
+      "1": 14,
+      "2": 15,
+      "3": 14,
+      "4": 7
     },
     "1-2": {
       "1": 3,
@@ -203,8 +352,8 @@
       "2": 0
     },
     "1-3": {
-      "1": 8,
-      "3": 8
+      "1": 16,
+      "3": 16
     }
   }
 }

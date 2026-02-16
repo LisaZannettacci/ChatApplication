@@ -10,11 +10,15 @@ import interfaces.client.Accounting_itf;
 import interfaces.server.Hello2;
 import interfaces.server.Registry_itf;
 import common.TchatMessage;
+import ihm.LoginFrame;
+import ihm.TchatFrame;
 
 public class HelloClient2 implements Accounting_itf {
 
     private final String name;
     private volatile int clientId;
+    private Hello2 tchatService;
+    private TchatFrame ihm;
 
     HelloClient2(String name) {
         this.name = name;
@@ -31,8 +35,17 @@ public class HelloClient2 implements Accounting_itf {
     }
 
     @Override
-    public void receiveMessage(int fromClientId, String fromClientName, String message) throws RemoteException {
-        System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ")] " + message);
+    public int getClientId() throws RemoteException {
+        return this.clientId;
+    }
+
+    @Override
+    public void receiveMessage(int fromClientId, String fromClientName, String message) {
+        if (ihm != null) {
+            ihm.appendMessage(fromClientName, message);
+        } else {
+            System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ")] " + message);
+        }
     }
 
     @Override
@@ -85,7 +98,10 @@ public class HelloClient2 implements Accounting_itf {
                     String name = entry.getKey();
                     int unreadCount = entry.getValue();
                     
-                    if(unreadCount > 0) {
+                    if(unreadCount == 1) {
+                        name += " (" + unreadCount + " message non lu)";
+                    }
+                    else if(unreadCount > 1) {
                         name += " (" + unreadCount + " messages non lus)";
                     }
                     System.out.println("- " + name);
@@ -125,6 +141,14 @@ public class HelloClient2 implements Accounting_itf {
             return e.getMessage();
         }
         return "Erreur distante.";
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setIhm(TchatFrame ihm) {
+        this.ihm = ihm;
     }
 
     private static void runMenu(HelloClient2 client, Hello2 h2) {
@@ -240,69 +264,81 @@ public class HelloClient2 implements Accounting_itf {
         }
     }
 
+    public Hello2 getTchatService() {
+        return this.tchatService;
+    }
+
+    public static HelloClient2 launchConnection(String host, int port, String pseudo, int requestedId) throws Exception {
+        Registry registry = LocateRegistry.getRegistry(host, port);
+        Registry_itf registry_stub = (Registry_itf) registry.lookup("RegistryService");
+        Hello2 h2 = (Hello2) registry.lookup("Hello2Service");
+
+        // 2. Création et export du client (pour les callbacks)
+        HelloClient2 client = new HelloClient2(pseudo);
+        client.tchatService = h2; // On stocke le service dans l'instance
+        
+        Accounting_itf client_stub = (Accounting_itf) UnicastRemoteObject.exportObject(client, 0);
+
+        // 3. Enregistrement auprès du serveur
+        try {
+            int assignedId = registry_stub.register(client_stub, pseudo, requestedId);
+            client.clientId = assignedId;
+            System.out.println("Connecté avec l'ID : " + assignedId);
+            return client;
+        } catch (RemoteException e) {
+            UnicastRemoteObject.unexportObject(client, true);
+            throw e; // On propage l'erreur pour que l'IHM puisse afficher un message
+        }
+    }
+
     public static void main(String [] args) {
 		try {
-            if (args.length < 4) {
-                System.out.println("Usage: java HelloClient2 <rmiregistry host> <rmiregistry port> <client name> <client id>");
-                System.out.println("Si c'est votre première connexion, utilisez l'id 0 !");
-                return;
+            // if (args.length < 4) {
+            //     System.out.println("Usage: java HelloClient2 <rmiregistry host> <rmiregistry port> <pseudo> <id> [--ihm]");
+            //     System.out.println("Si c'est votre première connexion, utilisez l'id 0 !");
+            //     return;
+            // }
+            
+            boolean useIHM = false;
+            for (String arg : args) {
+                if (arg.equalsIgnoreCase("--ihm")) {
+                    useIHM = true;
+                    break;
+                }
             }
-
             String host = args[0];
             int port = Integer.parseInt(args[1]);
-            int requestedClientId = Integer.parseInt(args[3]);
 
-            // Le client récupère le registre RMI.
-            Registry registry = LocateRegistry.getRegistry(host, port);
-
-            // Le client crée son objet local puis l'export en stub distant
-            HelloClient2 client = new HelloClient2(args[2]);
-
-            Accounting_itf client_stub = null;
-
-            try {
-                // Exportation de l'objet
-                // On publie l'objet client pour qu'on puisse l'appeler à distance (pour les callbacks du serveur)
-                client_stub = (Accounting_itf) UnicastRemoteObject.exportObject(client, 0);
-            } catch (RemoteException re) {
-                System.err.println("exportObject failed:");
-                re.printStackTrace();
-                return;
+            if (useIHM || args.length < 4) {
+                System.out.println("Lancement du mode Graphique...");
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    new LoginFrame(host, port).setVisible(true);
+                });
             }
+            else{
+              try {
+                    String pseudo = args[2];
+                    int id = Integer.parseInt(args[3]);
 
-            // Le client récupère le stub serveur du registre
-            Registry_itf registry_stub = (Registry_itf) registry.lookup("RegistryService");
-            if (registry_stub == null) {
-                System.err.println("registry_stub is null");
-                return;
-            }
+                    HelloClient2 client = launchConnection(host, port, pseudo, id);
+                    System.out.println("Je suis " + client.name + " et mon id est " + client.clientId + ".");
+                    System.out.println("Je me suis enregistré auprès du serveur.");
 
-            if (client_stub == null) {
-                System.err.println("client_stub is null before register()");
-                return;
-            }
+                    if (client != null) {
+                        runMenu(client, client.tchatService);
+                        UnicastRemoteObject.unexportObject(client, true);
+                    }
 
-            // Le client s'enregistre/se connecte au serveur.
-            int assignedId;
-            try {
-                assignedId = registry_stub.register(client_stub, client.name, requestedClientId);
-            } catch (RemoteException e) {
-                System.out.println("Connexion refusée : " + extractRemoteMessage(e));
-                System.out.println("Utilisez l'id 0 si c'est votre première connexion.");
-                try {
-                    UnicastRemoteObject.unexportObject(client, true);
-                } catch (Exception ignored) {
-                }
-                return;
-            }
-            if (client.clientId <= 0) {
-                client.clientId = assignedId;
-            }
-            System.out.println("Je suis " + client.name + " et mon id est " + client.clientId + ".");
-            System.out.println("Je me suis enregistré auprès du serveur.");
+                    try {
+                        // On désenregistre le client.
+                        UnicastRemoteObject.unexportObject(client, true);
+                    } catch (Exception ignored) {
+                    }
 
-            // Le client récupère le stub du service de chat (accès aux méthodes de Hello2Service).
-            Hello2 h2 = (Hello2) registry.lookup("Hello2Service");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }  
+            }
 
             // Récupération de l'historique général à la connexion
             // try {
@@ -313,14 +349,6 @@ public class HelloClient2 implements Accounting_itf {
             // } catch (RemoteException e) {
             //     System.err.println("Impossible de récupérer l'historique : " + e.getMessage());
             // }
-
-            runMenu(client, h2);
-
-            try {
-                // On sésenregistre le client.
-                UnicastRemoteObject.unexportObject(client, true);
-            } catch (Exception ignored) {
-            }
 
         } catch (Exception e) { 
 			e.printStackTrace();
