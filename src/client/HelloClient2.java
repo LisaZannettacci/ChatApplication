@@ -3,10 +3,12 @@ package client;
 import java.rmi.*;
 import java.rmi.registry.*;
 import java.rmi.server.*;
+import java.util.List;
 import java.util.Scanner;
 import interfaces.client.Accounting_itf;
 import interfaces.server.Hello2;
 import interfaces.server.Registry_itf;
+import common.TchatMessage;
 
 public class HelloClient2 implements Accounting_itf {
 
@@ -37,6 +39,43 @@ public class HelloClient2 implements Accounting_itf {
         System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ") sur le tchat général] " + message);
     }
 
+    private static void displayHistory(List<TchatMessage> history, String convId, int cursor, boolean displayAll) {
+        if (history == null || history.isEmpty()) {
+            System.out.println("\n--- Aucun message dans \"" + convId + "\" ---");
+            return;
+        }
+        System.out.println("\n--- RÉCUPÉRATION DE L'HISTORIQUE (" + convId + ") ---");
+        
+        for (TchatMessage msg : history) {
+            // C'est ici qu'on décide du format : [Pseudo] Message
+            if (msg.id > cursor) {
+                System.out.println("[NOUVEAU] [" + msg.senderName + "] " + msg.content);
+            } else {
+                if (displayAll) {
+                    // On affiche tous les messages, même ceux déjà lus
+                    System.out.println("          [" + msg.senderName + "] " + msg.content);
+                }
+            }
+        }
+        System.out.println("------------------------------------\n");
+    }
+
+    private static void displayConversationsList(Hello2 h2, int myId) {
+        try {
+            List<String> convs = h2.getConversationsList(myId);
+            System.out.println("\n=== VOS CONVERSATIONS ===");
+            System.out.println("GENERAL (tchat général)");
+            if (!convs.isEmpty()) {
+                for (int i = 0; i < convs.size(); i++) {
+                    System.out.println((i + 1) + ". " + convs.get(i));
+                }
+            }
+            System.out.println("=========================\n");
+        } catch (RemoteException e) {
+            System.out.println("Erreur lors de la récupération de la liste.");
+        }
+    }
+
     private static void displayMenu() {
         System.out.println("\n==== MENU ====\n" +
                 "1. Envoyer message au tchat général\n" +
@@ -48,6 +87,7 @@ public class HelloClient2 implements Accounting_itf {
                 "7. Changer pseudo\n" +
                 "8. Changer nom de groupe\n" +
                 "9. Infos groupe\n" +
+                "10. Récupérer historique\n" +
                 "0. Quitter\n" +
                 "Choix : ");
     }
@@ -108,6 +148,41 @@ public class HelloClient2 implements Accounting_itf {
                 case "8":
                 case "9":
                     System.out.println("Fonctionnalité non implémentée pour le moment.");
+                    break;
+                case "10":
+                    displayConversationsList(h2, client.clientId);
+                    System.out.print("Entrez le nom de la conversation pour récupérer l'historique (ex: GENERAL ou clientId1-clientId2) : ");
+                    String convId = scanner.nextLine().trim();
+                    System.out.println("1. Historique complet\n" +
+                            "2. Messages non lus seulement\n" +
+                            "Choix : ");
+                    String histChoice = scanner.nextLine().trim();
+                    while (!histChoice.equals("1") && !histChoice.equals("2")) {
+                        System.out.println("Choix invalide.");
+                        System.out.println("1. Historique complet\n" +
+                            "2. Messages non lus seulement\n" +
+                            "Choix : ");
+                        histChoice = scanner.nextLine().trim();
+                    }
+
+                    int cursor;
+                    try {                 
+                        cursor = h2.getCursor(client.clientId, convId);
+                    } catch (RemoteException e) {
+                        System.out.println("Erreur curseur : " + extractRemoteMessage(e));
+                        break;
+                    }
+                    
+                    try {           
+                        boolean displayAll = histChoice.equals("1"); 
+                        List<TchatMessage> history;
+                        history = h2.getHistory(client.clientId, convId);
+
+                        displayHistory(history, convId, cursor, displayAll);
+                        
+                    } catch (RemoteException e) {
+                        System.out.println("Impossible de récupérer l'historique : " + extractRemoteMessage(e
+));                 }
                     break;
                 case "0":
                     try {
@@ -187,6 +262,16 @@ public class HelloClient2 implements Accounting_itf {
 
             // Le client récupère le stub du service de chat (accès aux méthodes de Hello2Service).
             Hello2 h2 = (Hello2) registry.lookup("Hello2Service");
+
+            // Récupération de l'historique général à la connexion
+            try {
+                // On demande l'historique pour la salle "GENERAL"
+                java.util.List<TchatMessage> generalHistory = h2.getHistory(client.clientId, "GENERAL");
+                displayHistory(generalHistory, "GENERAL", -1, true);
+            } catch (RemoteException e) {
+                System.err.println("Impossible de récupérer l'historique : " + e.getMessage());
+            }
+
             runMenu(client, h2);
 
             try {

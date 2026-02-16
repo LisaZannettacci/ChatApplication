@@ -1,8 +1,12 @@
 package server;
 
 import java.rmi.*;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import common.TchatMessage;
 import interfaces.client.Accounting_itf;
 import interfaces.server.Hello2;
 import interfaces.server.Registry_itf;
@@ -17,6 +21,13 @@ public class Hello2Impl implements Hello2, Registry_itf {
     private final Map<Integer, String> map_id_pseudo; // Associe un identifiant client à son pseudo (pour les notifications et messages).
     private final Map<Integer, Integer> map_nb_sayHello_id; // Associe un identifiant client à son nombre d'appels sayHello.
     private final ServerStateStore stateStore;
+    // Dans Hello2Impl.java
+    private final Map<String, List<TchatMessage>> allHistories = new HashMap<>(); // Associe un nom de conversation à sa liste de messages.
+                                                                                 // Le nom de conversation peut être "GENERAL" pour le tchat général, 
+                                                                                 // ou "clientId1-clientId2" pour un message direct entre deux clients,
+                                                                                 // avec clientId1 < clientId2 pour garantir un ordre logique.
+    private final Map<String, Map<Integer, Integer>> readCursors = new HashMap<>();  // Associe un nom de conversation à une map qui associe chaque clientId 
+                                                                                     // au dernier index de message lu dans allHistories pour cette conversation.
     private int nextClientId;
     private int LIMITE_AVANT_NOTIFICATION = 10;
 
@@ -44,6 +55,18 @@ public class Hello2Impl implements Hello2, Registry_itf {
         return (clientName == null || clientName.trim().isEmpty())
             ? "Client-" + clientId
             : clientName.trim();
+    }
+
+    private synchronized void updateCursor(int userId, String convId, int lastMessageId) {
+        Map<Integer, Integer> convCursors = readCursors.get(convId);
+        if (convCursors == null) { // si la conversation n'avait pas encore de curseurs, on crée une nouvelle map pour cette conversation
+            convCursors = new HashMap<>();
+            // On l'ajoute dans la Map globale pour ne pas la perdre
+            readCursors.put(convId, convCursors);
+        }
+
+        // 2. On enregistre que l'utilisateur 'userId' a lu jusqu'au message 'lastMessageId'
+        convCursors.put(userId, lastMessageId);
     }
 
     @Override
@@ -148,26 +171,40 @@ public class Hello2Impl implements Hello2, Registry_itf {
         if (!map_id_pseudo.containsKey(toClientId)) {
             throw new RemoteException("Destinataire inconnu: id=" + toClientId);
         }
+
+        String convId;
+        if (fromClientId < toClientId) {
+            convId = fromClientId + "-" + toClientId;
+        } else {
+            convId = toClientId + "-" + fromClientId;
+        }
+
         String content = (message == null) ? "" : message.trim();
         if (content.isEmpty()) {
             throw new RemoteException("Le message ne peut pas être vide.");
         }
+        
+        // On ajoute le message à l'historique de la conversation.
+        List<TchatMessage> history = allHistories.get(convId);
+        if (history == null) {
+            history = new ArrayList<>();
+            allHistories.put(convId, history);
+        }
+        TchatMessage newMessage = new TchatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
+        history.add(newMessage);
 
         Accounting_itf targetClient = map_id_stubClient.get(toClientId);
         String fromClientName = map_id_pseudo.get(fromClientId);
         String toClientName = map_id_pseudo.get(toClientId);
-        if (targetClient == null) {
-            throw new RemoteException("Destinataire hors ligne: " + toClientName + " (id=" + toClientId + ").");
-        }
 
-        // Callback vers le client destinataire.
-        // Si l'appel échoue, on considère son stub obsolète et on le retire des maps actives.
-        try {
-            targetClient.receiveMessage(fromClientId, fromClientName, content);
-        } catch (RemoteException e) {
-            map_id_stubClient.remove(toClientId);
-            map_stubClient_id.remove(targetClient);
-            throw new RemoteException("Destinataire hors ligne: " + toClientName + " (id=" + toClientId + ").", e);
+        if (targetClient != null) {
+            try {
+                targetClient.receiveMessage(fromClientId, fromClientName, content);
+                // On met à jour son curseur de lecture puisqu'on vient de lui pousser le message
+                updateCursor(toClientId, convId, newMessage.id);
+            } catch (RemoteException e) {
+                map_id_stubClient.remove(toClientId);
+            }
         }
         return "Message envoyé à " + toClientName + " (id=" + toClientId + ").";
     }
@@ -182,25 +219,102 @@ public class Hello2Impl implements Hello2, Registry_itf {
             throw new RemoteException("Le message ne peut pas être vide.");
         }
 
+        String convId = "GENERAL";
+
+        // On ajoute le message à l'historique de la conversation.
+        List<TchatMessage> history = allHistories.get(convId);
+        if (history == null) {
+            history = new ArrayList<>();
+            allHistories.put(convId, history);
+        }
+        TchatMessage newMessage = new TchatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
+        history.add(newMessage);
+
         String fromClientName = map_id_pseudo.get(fromClientId);
 
         for (Integer toClientId : map_id_pseudo.keySet()) {
             if (toClientId != fromClientId) {
                 Accounting_itf targetClient = map_id_stubClient.get(toClientId);
-                String toClientName = map_id_pseudo.get(toClientId);
-                if (targetClient == null) {
-                    throw new RemoteException("Destinataire hors ligne: " + toClientName + " (id=" + toClientId + ").");
-                }
-                try {
-                    targetClient.receiveGeneralMessage(fromClientId, fromClientName, content);
-                } catch (RemoteException e) {
-                    map_id_stubClient.remove(toClientId);
-                    map_stubClient_id.remove(targetClient);
-                    throw new RemoteException("Destinataire hors ligne: " + toClientName + " (id=" + toClientId + ").", e);
+                
+                if (targetClient != null) {
+                    try {
+                        targetClient.receiveGeneralMessage(fromClientId, fromClientName, content);
+                        // On met à jour son curseur de lecture puisqu'on vient de lui pousser le message
+                        updateCursor(toClientId, convId, newMessage.id);
+                    } catch (RemoteException e) {
+                        map_id_stubClient.remove(toClientId);
+                    }
                 }
             }
         }
         return "Message envoyé à tous les clients connectés.";
+    }
+
+    @Override
+    public synchronized List<TchatMessage> getHistory(int userId, String convId) throws RemoteException {
+        // On récupère l'historique complet de la conversation demandée.
+        List<TchatMessage> history = allHistories.getOrDefault(convId, new ArrayList<>());
+        
+        // On met à jour le curseur pour cet utilisateur
+        if (!history.isEmpty()) {
+            int lastId = history.size() - 1;
+            updateCursor(userId, convId, lastId);
+        }
+        
+        return history; 
+    }
+
+    @Override
+    public synchronized List<TchatMessage> getNewMessages(int userId, String convId) throws RemoteException {
+        List<TchatMessage> fullHistory = allHistories.getOrDefault(convId, new ArrayList<>());
+        
+        // On cherche où l'utilisateur s'est arrêté
+        Map<Integer, Integer> convCursors = readCursors.getOrDefault(convId, new HashMap<>());
+        int lastReadIndex = convCursors.getOrDefault(userId, -1);
+
+        // S'il a déjà tout lu
+        if (lastReadIndex >= fullHistory.size() - 1) {
+            return new ArrayList<>();
+        }
+
+        // On extrait les messages de (lastReadIndex + 1) jusqu'à la fin
+        List<TchatMessage> newMessages = new ArrayList<>(fullHistory.subList(lastReadIndex + 1, fullHistory.size()));
+        
+        // On met à jour le curseur car il vient de les recevoir
+        updateCursor(userId, convId, fullHistory.size() - 1);
+        
+        return newMessages;
+    }
+
+    @Override
+    public synchronized List<String> getConversationsList(int userId) throws RemoteException {
+        List<String> userConvs = new ArrayList<>();
+        
+        // On parcourt toutes les clés de notre Map d'historiques
+        for (String convId : allHistories.keySet()) {
+            // Si c'est le tchat général
+            if (convId.equals("GENERAL")) {
+                userConvs.add("GENERAL");
+            } 
+            // Si c'est une conversation privée (ex: "1-2")
+            else if (convId.contains(String.valueOf(userId))) {
+                userConvs.add(convId);
+            }
+        }
+        return userConvs;
+    }
+
+    @Override
+    public synchronized int getCursor(int userId, String convId) throws RemoteException {
+        Map<Integer, Integer> convCursors = readCursors.get(convId);
+        
+        // Si elle n'existe pas, c'est que personne n'a encore lu (curseur à -1)
+        if (convCursors == null) {
+            return -1;
+        }
+        
+        // On renvoie le curseur de l'utilisateur, ou -1 s'il n'a jamais lu cette conv
+        return convCursors.getOrDefault(userId, -1);
     }
 
     @Override
