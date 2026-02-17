@@ -42,7 +42,9 @@ public class HelloClient2 implements Accounting_itf {
     @Override
     public void receiveMessage(int fromClientId, String fromClientName, String message) {
         if (ihm != null) {
-            ihm.appendMessage(fromClientName, message);
+            //ihm.appendMessage(fromClientName, message);
+            String convId = (fromClientId < this.clientId) ? fromClientId + "-" + this.clientId : this.clientId + "-" + fromClientId;
+            ihm.onMessageReceived(convId, fromClientName, message);
         } else {
             System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ")] " + message);
         }
@@ -50,7 +52,12 @@ public class HelloClient2 implements Accounting_itf {
 
     @Override
     public void receiveGeneralMessage(int fromClientId, String fromClientName, String message) throws RemoteException {
-        System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ") sur le tchat général] " + message);
+        if (ihm != null) {
+            // ihm.appendMessage(fromClientName, message);
+            ihm.onGeneralMessageReceived(fromClientName, message);
+        } else {
+            System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ") sur le tchat général] " + message);
+        }
     }
 
     private static void displayHistory(List<TchatMessage> history, String convId, int cursor, boolean displayAll) {
@@ -288,6 +295,21 @@ public class HelloClient2 implements Accounting_itf {
         } catch (RemoteException e) {
             UnicastRemoteObject.unexportObject(client, true);
             throw e; // On propage l'erreur pour que l'IHM puisse afficher un message
+        }
+    }
+
+    public void close() {
+        try {
+            if (tchatService != null && clientId != -1) {
+                System.out.println("Déconnexion du serveur...");
+                tchatService.disconnect(clientId);
+            }
+        } catch (RemoteException e) {
+            System.err.println("Erreur lors de la déconnexion RMI : " + e.getMessage());
+        } finally {
+            // On quitte l'application
+            System.out.println("Fermeture de l'application.");
+            System.exit(0);
         }
     }
 

@@ -14,5 +14,6 @@ public interface Hello2 extends Remote {
 	public List<TchatMessage> getHistory(int userId, String convId) throws RemoteException;
 	public Map<String, Integer> getConversationsList(int userId) throws RemoteException;
 	public int getCursor(int userId, String convId) throws RemoteException;
+	public String getClientPseudo(int clientId) throws RemoteException;
 	public void disconnect(int clientId) throws RemoteException;
 }

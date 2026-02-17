@@ -46,7 +46,9 @@ public class LoginFrame extends JFrame {
         
         // Si ça réussit, on ouvre la fenêtre principale du chat
         // On passe le client et le service RMI à la fenêtre suivante
-        new TchatFrame(client, client.getTchatService()).setVisible(true);
+        TchatFrame tchatFrame = new TchatFrame(client, client.getTchatService());
+        client.setIhm(tchatFrame);
+        tchatFrame.setVisible(true);
         
         this.dispose(); // On ferme la fenêtre de login
     } catch (Exception e) {
