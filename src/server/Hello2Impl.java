@@ -67,7 +67,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
             readCursors.put(convId, convCursors);
         }
 
-        // 2. On enregistre que l'utilisateur 'userId' a lu jusqu'au message 'lastMessageId'
+        // On enregistre que l'utilisateur 'userId' a lu jusqu'au message 'lastMessageId'
         convCursors.put(userId, lastMessageId);
     }
 
@@ -250,8 +250,6 @@ public class Hello2Impl implements Hello2, Registry_itf {
                 if (targetClient != null) {
                     try {
                         targetClient.receiveGeneralMessage(fromClientId, fromClientName, content);
-                        // On met à jour son curseur de lecture puisqu'on vient de lui pousser le message
-                        // updateCursor(toClientId, convId, newMessage.id);
                     } catch (RemoteException e) {
                         map_id_stubClient.remove(toClientId);
                     }
@@ -280,7 +278,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
     public synchronized Map<String, Integer> getConversationsList(int userId) throws RemoteException {
         Map<String, Integer> userConvs = new HashMap<>();
         
-        // 1. On force l'existence de GENERAL dans la liste retournée
+        // On force l'existence de GENERAL dans la liste retournée
         // On vérifie d'abord si elle a des messages non lus
         int generalUnread = 0;
         List<TchatMessage> genHistory = allHistories.get("GENERAL");
@@ -293,7 +291,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
         }
         userConvs.put("GENERAL", generalUnread);
 
-        // 2. On parcourt le reste des historiques pour les messages privés
+        // On parcourt le reste des historiques pour les messages privés
         for (String convId : allHistories.keySet()) {
             if (convId.contains(String.valueOf(userId)) && !convId.equals("GENERAL")) {
                 List<TchatMessage> history = allHistories.get(convId);

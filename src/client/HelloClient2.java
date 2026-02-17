@@ -6,6 +6,7 @@ import java.rmi.server.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import javax.swing.SwingUtilities;
 import interfaces.client.Accounting_itf;
 import interfaces.server.Hello2;
 import interfaces.server.Registry_itf;
@@ -42,21 +43,34 @@ public class HelloClient2 implements Accounting_itf {
     @Override
     public void receiveMessage(int fromClientId, String fromClientName, String message) {
         if (ihm != null) {
-            //ihm.appendMessage(fromClientName, message);
             String convId = (fromClientId < this.clientId) ? fromClientId + "-" + this.clientId : this.clientId + "-" + fromClientId;
             ihm.onMessageReceived(convId, fromClientName, message);
         } else {
             System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ")] " + message);
+            
+            // on informe le serveur que ce message a été "lu" pour mettre à jour le curseur côté serveur
+            try {
+                String convId = (fromClientId < this.clientId) ? fromClientId + "-" + this.clientId : this.clientId + "-" + fromClientId;
+                tchatService.getHistory(clientId, convId);
+            } catch (RemoteException e) {
+                System.out.println("Erreur lors de la mise à jour du curseur : " + e.getMessage());
+            }
         }
     }
 
     @Override
     public void receiveGeneralMessage(int fromClientId, String fromClientName, String message) throws RemoteException {
         if (ihm != null) {
-            // ihm.appendMessage(fromClientName, message);
             ihm.onGeneralMessageReceived(fromClientName, message);
         } else {
             System.out.println("\n[Message de " + fromClientName + " (id=" + fromClientId + ") sur le tchat général] " + message);
+        
+            // on informe le serveur que ce message a été "lu" pour mettre à jour le curseur côté serveur
+            try {
+                tchatService.getHistory(clientId, "GENERAL");
+            } catch (RemoteException e) {
+                System.out.println("Erreur lors de la mise à jour du curseur : " + e.getMessage());
+            }
         }
     }
 
@@ -77,17 +91,17 @@ public class HelloClient2 implements Accounting_itf {
         }
         
         for (TchatMessage msg : history) {
-            // C'est ici qu'on décide du format : [Pseudo] Message
-            if (msg.id > cursor) {
+            
+            if (msg.id > cursor) { // il y a des messages non lus, on les marque
                 System.out.println("[NOUVEAU] [" + msg.senderName + "] " + msg.content);
             } else {
                 if (displayAll) {
-                    // On affiche tous les messages, même ceux déjà lus
+                    // On affiche tous les messages, même ceux déjà lus au format "[Pseudo] Message"
                     if (!hasNewMessages) {
                         System.out.println("[" + msg.senderName + "] " + msg.content);
                     }
                     else {
-                        System.out.println("          [" + msg.senderName + "] " + msg.content);
+                        System.out.println("          [" + msg.senderName + "] " + msg.content); // on laisse un espace pour aligner les messages déjà lus avec les nouveaux
                     }
                 }
             }
@@ -280,13 +294,13 @@ public class HelloClient2 implements Accounting_itf {
         Registry_itf registry_stub = (Registry_itf) registry.lookup("RegistryService");
         Hello2 h2 = (Hello2) registry.lookup("Hello2Service");
 
-        // 2. Création et export du client (pour les callbacks)
+
         HelloClient2 client = new HelloClient2(pseudo);
         client.tchatService = h2; // On stocke le service dans l'instance
         
         Accounting_itf client_stub = (Accounting_itf) UnicastRemoteObject.exportObject(client, 0);
 
-        // 3. Enregistrement auprès du serveur
+        // On s'enregistre auprès du serveur et on récupère l'ID assigné
         try {
             int assignedId = registry_stub.register(client_stub, pseudo, requestedId);
             client.clientId = assignedId;
@@ -315,12 +329,6 @@ public class HelloClient2 implements Accounting_itf {
 
     public static void main(String [] args) {
 		try {
-            // if (args.length < 4) {
-            //     System.out.println("Usage: java HelloClient2 <rmiregistry host> <rmiregistry port> <pseudo> <id> [--ihm]");
-            //     System.out.println("Si c'est votre première connexion, utilisez l'id 0 !");
-            //     return;
-            // }
-            
             boolean useIHM = false;
             for (String arg : args) {
                 if (arg.equalsIgnoreCase("--ihm")) {
@@ -331,9 +339,9 @@ public class HelloClient2 implements Accounting_itf {
             String host = args[0];
             int port = Integer.parseInt(args[1]);
 
-            if (useIHM || args.length < 4) {
+            if (useIHM || args.length < 4) { // Si on a l'option --ihm ou pas assez d'arguments pour le mode console, on lance l'IHM
                 System.out.println("Lancement du mode Graphique...");
-                javax.swing.SwingUtilities.invokeLater(() -> {
+                SwingUtilities.invokeLater(() -> {
                     new LoginFrame(host, port).setVisible(true);
                 });
             }
@@ -361,17 +369,7 @@ public class HelloClient2 implements Accounting_itf {
                     e.printStackTrace();
                 }  
             }
-
-            // Récupération de l'historique général à la connexion
-            // try {
-            //     // On demande l'historique pour la salle "GENERAL"
-            //     int cursor = h2.getCursor(client.clientId, "GENERAL");
-            //     java.util.List<TchatMessage> generalHistory = h2.getHistory(client.clientId, "GENERAL");
-            //     displayHistory(generalHistory, "GENERAL", cursor, true);
-            // } catch (RemoteException e) {
-            //     System.err.println("Impossible de récupérer l'historique : " + e.getMessage());
-            // }
-
+            
         } catch (Exception e) { 
 			e.printStackTrace();
 		}

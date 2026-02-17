@@ -7,6 +7,8 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.rmi.RemoteException;
 import java.util.List;
 import java.util.Map;
@@ -74,13 +76,13 @@ public class TchatFrame extends JFrame {
         refreshConversations();
 
         tchatArea.setText("Bienvenue ! Veuillez sélectionner une conversation à gauche.");
-        messageField.setEnabled(false); // Désactive le champ au début
+        messageField.setEnabled(false); // Désactive le champ au début pour éviter d'envoyer des messages sans conversation sélectionnée
     }
 
     private void initLayout() {
         setLayout(new BorderLayout(5, 5));
 
-        // --- ZONE GAUCHE (inchangée) ---
+        // --- ZONE GAUCHE (Discussions) ---
         JPanel leftPanel = new JPanel(new BorderLayout(5, 5));
         leftPanel.setPreferredSize(new Dimension(200, 0));
         leftPanel.setBorder(BorderFactory.createTitledBorder("Conversations"));
@@ -90,10 +92,10 @@ public class TchatFrame extends JFrame {
         leftPanel.add(addConvBtn, BorderLayout.NORTH);
         leftPanel.add(listPane, BorderLayout.CENTER);
 
-        // --- ZONE DROITE (Cœur du changement) ---
+        // --- ZONE DROITE (Conversation sélectionnée) ---
         JPanel rightPanel = new JPanel(new BorderLayout(5, 5));
 
-        // 1. Barre de titre en haut de la conversation
+        // Barre de titre en haut de la conversation
         JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         headerPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         headerPanel.setBackground(Color.LIGHT_GRAY); // Optionnel : pour bien la voir
@@ -101,12 +103,12 @@ public class TchatFrame extends JFrame {
         headerPanel.add(tchatTitleLabel);
         rightPanel.add(headerPanel, BorderLayout.NORTH);
 
-        // 2. Zone de messages (Centre)
+        // Zone de messages
         tchatArea.setEditable(false);
         JScrollPane chatPane = new JScrollPane(tchatArea);
         rightPanel.add(chatPane, BorderLayout.CENTER);
 
-        // 3. Barre de saisie (Bas de la zone droite uniquement)
+        // Barre de saisie du message
         JPanel inputPanel = new JPanel(new BorderLayout(5, 5));
         inputPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         JButton sendBtn = new JButton("Envoyer");
@@ -114,11 +116,10 @@ public class TchatFrame extends JFrame {
         inputPanel.add(sendBtn, BorderLayout.EAST);
         rightPanel.add(inputPanel, BorderLayout.SOUTH);
 
-        // SplitPane : Gauche vs Droite
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
         add(splitPane, BorderLayout.CENTER);
 
-        // --- ACTIONS ---
+        // Définit les actions des boutons et champs
         sendBtn.addActionListener(e -> sendMessage());
         messageField.addActionListener(e -> sendMessage());
         addConvBtn.addActionListener(e -> showAddConvDialog());
@@ -127,14 +128,14 @@ public class TchatFrame extends JFrame {
     private void appendStyledMessage(String senderName, String message, boolean isMe) {
         StyledDocument doc = tchatArea.getStyledDocument();
 
-        // 1. Créer le style d'alignement
+        // On crée le style d'alignement
         SimpleAttributeSet style = new SimpleAttributeSet();
         StyleConstants.setAlignment(style, isMe ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
         StyleConstants.setForeground(style, isMe ? new Color(0, 102, 204) : Color.BLACK); // Bleu pour soi
         StyleConstants.setFontFamily(style, "SansSerif");
         StyleConstants.setFontSize(style, 12);
 
-        // 2. Appliquer l'alignement au paragraphe
+        // On applique l'alignement au paragraphe
         int start = doc.getLength();
         String content = "[" + senderName + "] " + message + "\n";
         
@@ -146,6 +147,7 @@ public class TchatFrame extends JFrame {
         }
     }
 
+    // Création de conversation
     private void showAddConvDialog() {
         String targetIdStr = JOptionPane.showInputDialog(this, 
             "Entrez l'ID du client avec qui discuter :", 
@@ -164,7 +166,7 @@ public class TchatFrame extends JFrame {
 
                 String newConvId = (myId < targetId) ? myId + "-" + targetId : targetId + "-" + myId;
 
-                // 1. Vérifier si elle existe déjà
+                // On vérifie d'abord si la conversation existe déjà dans la liste
                 ConversationItem existingItem = null;
                 for (int i = 0; i < convListModel.size(); i++) {
                     if (convListModel.getElementAt(i).getId().equals(newConvId)) {
@@ -174,13 +176,13 @@ public class TchatFrame extends JFrame {
                 }
 
                 if (existingItem == null) {
-                    // 2. Si elle n'existe pas, on l'ajoute
+                    // Si elle n'existe pas, on l'ajoute
                     ConversationItem newItem = new ConversationItem(newConvId, 0);
                     convListModel.addElement(newItem);
                     existingItem = newItem;
                 }
 
-                // 3. On la sélectionne (ceci déclenchera le listener et donc loadHistory)
+                // On la sélectionne (ceci déclenchera le listener et donc loadHistory)
                 convList.setSelectedValue(existingItem, true);
                 currentConv = newConvId;
 
@@ -202,7 +204,7 @@ public class TchatFrame extends JFrame {
             if (currentConv.equals("GENERAL")) {
                 tchatService.sendGeneralMessage(client.getClientId(), text);
             } else {
-                // Pour le privé, on extrait l'ID du destinataire du nom de conv (ex: "1-2")
+                // Pour les conversations privées, on extrait l'ID du destinataire du nom de conv (ex: "1-2")
                 int targetId = extractTargetId(currentConv);
                 tchatService.sendDirectMessage(client.getClientId(), targetId, text);
             }
@@ -213,27 +215,12 @@ public class TchatFrame extends JFrame {
         }
     }
 
-    public void appendMessage(String sender, String message) {
-        // Cette méthode sera appelée par le callback du HelloClient2
-        SwingUtilities.invokeLater(() -> {
-            // 1. On vérifie si l'expéditeur est moi-même
-            // Note : Il est préférable de comparer les IDs si possible, 
-            // mais ici on compare le pseudo avec celui du client
-            boolean isMe = sender.equals(client.getName());
-
-            // 2. On utilise la nouvelle méthode stylée
-            appendStyledMessage(sender, message, isMe);
-
-            // 3. On fait défiler vers le bas
-            tchatArea.setCaretPosition(tchatArea.getDocument().getLength());
-        });
-    }
-
     public void onMessageReceived(String convId, String sender, String message) {
         SwingUtilities.invokeLater(() -> {
             if (currentConv != null && currentConv.equals(convId)) {
                 appendStyledMessage(sender, "[NOUVEAU] " + message, false);
                 
+                // On rafraichit la conversation pour mettre à jour le curseur et éviter d'avoir le message marqué comme "non lu" à la prochaine ouverture
                 try {
                     tchatService.getHistory(client.getClientId(), convId);
                 } catch (Exception e) {
@@ -254,8 +241,12 @@ public class TchatFrame extends JFrame {
                 appendStyledMessage(sender, "[NOUVEAU] " + message, false);
                 tchatArea.setCaretPosition(tchatArea.getDocument().getLength());
                 
-                // On peut tenter un petit rafraîchissement silencieux pour le curseur serveur
-                try { tchatService.getHistory(client.getClientId(), "GENERAL"); } catch(Exception e){}
+                // On rafraichit la conversation pour mettre à jour le curseur et éviter d'avoir le message marqué comme "non lu" à la prochaine ouverture
+                try { 
+                    tchatService.getHistory(client.getClientId(), "GENERAL"); 
+                } catch(Exception e){
+                    System.err.println("Erreur synchro curseur : " + e.getMessage());
+                }
             } 
             else {
                 // Sinon, on cherche "GENERAL" dans la liste pour augmenter le compteur
@@ -281,24 +272,6 @@ public class TchatFrame extends JFrame {
         }
         convList.repaint();
     }
-
-    // private void updateUnreadInList(String convId) {
-    //     // On parcourt tous les éléments du modèle de la JList
-    //     for (int i = 0; i < convListModel.size(); i++) {
-    //         ConversationItem item = convListModel.getElementAt(i);
-            
-    //         // Si l'ID de l'item correspond à la conversation du message reçu
-    //         if (item.getId().equals(convId)) {
-    //             // On augmente le compteur interne de l'objet
-    //             item.setUnreadCount(item.getUnreadCount() + 1);
-                
-    //             // TRES IMPORTANT : On demande à la JList de se redessiner
-    //             // Cela va appeler le .toString() de l'item et afficher le "(1 message non lu)"
-    //             convList.repaint();
-    //             break; 
-    //         }
-    //     }
-    // }
 
     private void loadHistory() {
         if (currentConv == null) return;
@@ -328,8 +301,6 @@ public class TchatFrame extends JFrame {
         try {
             Map<String, Integer> convs = tchatService.getConversationsList(client.getClientId());
             
-            // Au lieu de clear(), on met à jour ou on ajoute.
-            // Si tu veux garder le clear(), il faut ré-ajouter manuellement currentConv après :
             convListModel.clear();
 
             // On remet les convs du serveur
@@ -337,7 +308,7 @@ public class TchatFrame extends JFrame {
                 convListModel.addElement(new ConversationItem(entry.getKey(), entry.getValue()));
             }
 
-            // --- FIX : Si la conv actuelle n'est pas dans ce que le serveur connaît ---
+            // Si la conv actuelle n'est pas dans ce que le serveur connaît
             // (cas d'une nouvelle conv sans message), on la rajoute de force dans la liste
             if (currentConv != null) {
                 boolean found = false;
@@ -371,9 +342,9 @@ public class TchatFrame extends JFrame {
                         
                         loadHistory();
 
-                        // 1. On remet le compteur à zéro localement pour l'affichage
+                        // Lorsque l'on ouvre une conversation, on considère que les messages sont lus, donc on remet le compteur à 0
                         item.setUnreadCount(0); 
-                        convList.repaint(); // Force Swing à redessiner la liste (appelle toString())
+                        convList.repaint();
                         
                         refreshConversations();
                     }
@@ -381,9 +352,9 @@ public class TchatFrame extends JFrame {
             }
         });
 
-        // Gestion de la fermeture propre (comme vu précédemment)
-        this.addWindowListener(new java.awt.event.WindowAdapter() {
-            public void windowClosing(java.awt.event.WindowEvent e) {
+        // Gestion de la fermeture propre de la fenêtre pour fermer la connexion RMI
+        this.addWindowListener(new WindowAdapter() {
+            public void windowClosing(WindowEvent e) {
                 client.close();
             }
         });
