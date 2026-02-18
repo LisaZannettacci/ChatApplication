@@ -1,10 +1,11 @@
 {
-  "nextClientId": 5,
+  "nextClientId": 6,
   "mapIdPseudo": {
     "1": "louis",
     "2": "justine",
     "3": "lisa",
-    "4": "lisa"
+    "4": "lisa",
+    "5": "coco"
   },
   "allHistories": {
     "2-3": [
@@ -56,6 +57,15 @@
         "senderName": "justine",
         "content": "fwxb",
         "timestamp": 1771277111133
+      }
+    ],
+    "2-5": [
+      {
+        "id": 0,
+        "senderId": 5,
+        "senderName": "coco",
+        "content": "Salut!",
+        "timestamp": 1771452355150
       }
     ],
     "GENERAL": [
@@ -170,6 +180,13 @@
         "senderName": "justine",
         "content": "coucou à tous !",
         "timestamp": 1771279256314
+      },
+      {
+        "id": 16,
+        "senderId": 5,
+        "senderName": "coco",
+        "content": "Salut! Jolie interface!",
+        "timestamp": 1771452327537
       }
     ],
     "1-2": [
@@ -338,11 +355,16 @@
       "2": 6,
       "3": 6
     },
+    "2-5": {
+      "2": 0,
+      "5": 0
+    },
     "GENERAL": {
       "1": 14,
-      "2": 15,
+      "2": 16,
       "3": 14,
-      "4": 7
+      "4": 7,
+      "5": 16
     },
     "1-2": {
       "1": 3,
