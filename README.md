@@ -9,13 +9,17 @@ bash compilation.sh
 Execution :
 
 ```bash
-java -Djava.rmi.server.hostname=localhost -cp classes server.HelloServer 6090
+java -Djava.rmi.server.hostname=localhost \
+     -cp "lib/*:classes" \
+     server.HelloServer 6090
 
 # Interface textuelle :
-java -cp "lib/*:classes" client.HelloClient2 localhost 6090 <nom_client> <id_client>
+java -cp "lib/*:classes" \
+     client.HelloClient2 localhost 6090 <nom_client> <id_client>
 
 # Interface graphique :
-java -cp "lib/*:classes" \client.HelloClient2 localhost 6090 <nom_client> <id_client> --ihm
+java -cp "lib/*:classes" \
+      client.HelloClient2 localhost 6090 <nom_client> <id_client> --ihm
 
 ```
 
