@@ -620,6 +620,25 @@ public class ChatFrame extends JFrame {
         });
     }
 
+    /**
+     * Extrait l'ID du destinataire à partir de l'ID de conversation.
+     * Une conversation privée a un ID au format "id1-id2" où id1 < id2.
+     * Cette méthode retourne l'ID qui n'est pas celui de l'utilisateur connecté.
+     * 
+     * Logique :
+     * - Séparation de l'ID de conversation par le délimiteur "-"
+     * - Identification de l'ID du client connecté
+     * - Retour de l'autre ID (le destinataire)
+     * 
+     * Exemple :
+     * - Utilisateur connecté : ID=5
+     * - Conversation : "3-5"
+     * - Retour : 3
+     * 
+     * @param convId l'ID de la conversation au format "id1-id2"
+     * @return l'ID du destinataire, ou -1 en cas d'erreur
+     * @throws RemoteException si une erreur survient lors de la récupération de l'ID client
+     */
     private int extractTargetId(String convId) {
         // Logique pour trouver l'autre ID dans "ID1-ID2"
         String[] ids = convId.split("-");
