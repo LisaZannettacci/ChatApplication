@@ -5,11 +5,11 @@ import java.rmi.*;
 import java.rmi.server.*; 
 import java.rmi.registry.*;
 
-public class HelloServer {
+public class ChatServer {
 
   public static void  main(String [] args) {
 	  try {		
-		Hello2Impl h2 = new Hello2Impl("Hello world 2 !");
+		ChatServiceImpl h2 = new ChatServiceImpl("Hello world 2 !");
 
 		// Le Runtime RMI crée des threads réseau qui attendent les requêtes clients,
 		// Ces threads sont "non-deamon" càd que la JVM ne s'arrête pas tant que ces threads sont actifs (=> même si fin du main)

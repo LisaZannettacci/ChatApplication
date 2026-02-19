@@ -2,6 +2,6 @@ package interfaces.client;
 
 import java.rmi.*;
 
-public interface Info_itf extends Remote {
+public interface ClientInfo extends Remote {
 	public String getName() throws RemoteException;
 }

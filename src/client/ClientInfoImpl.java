@@ -1,12 +1,12 @@
 package client;
 
 import java.rmi.*;
-import interfaces.client.Info_itf;
+import interfaces.client.ClientInfo;
 
-public class InfoImpl implements Info_itf {
+public class ClientInfoImpl implements ClientInfo {
     private final String name;
     
-    public InfoImpl(String name) {
+    public ClientInfoImpl(String name) {
         this.name = name;
     }
     

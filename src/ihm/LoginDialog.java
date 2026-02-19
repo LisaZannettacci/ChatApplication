@@ -2,16 +2,16 @@ package ihm;
 
 import javax.swing.*;
 import java.awt.*;
-import client.HelloClient2;
+import client.ChatClient;
 
-public class LoginFrame extends JFrame {
+public class LoginDialog extends JFrame {
     private JTextField pseudoField = new JTextField();
     private JTextField idField = new JTextField();
     private JButton loginButton = new JButton("Se connecter");
     private String host;
     private int port;
 
-    public LoginFrame(String host, int port) {
+    public LoginDialog(String host, int port) {
         this.host = host;
         this.port = port;
         setTitle("Connexion au Chat RMI");
@@ -40,12 +40,12 @@ public class LoginFrame extends JFrame {
     int id = Integer.parseInt(idField.getText());
 
     try {
-        // On appelle la méthode statique de HelloClient2
-        HelloClient2 client = HelloClient2.launchConnection(host, port, pseudo, id);
+        // On appelle la méthode statique de ChatClient
+        ChatClient client = ChatClient.launchConnection(host, port, pseudo, id);
         
         // Si ça réussit, on ouvre la fenêtre principale du chat
         // On passe le client et le service RMI à la fenêtre suivante
-        TchatFrame tchatFrame = new TchatFrame(client, client.getTchatService());
+        ChatFrame tchatFrame = new ChatFrame(client, client.getTchatService());
         client.setIhm(tchatFrame);
         tchatFrame.setVisible(true);
         

@@ -7,21 +7,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import javax.swing.SwingUtilities;
-import interfaces.client.Accounting_itf;
-import interfaces.server.Hello2;
-import interfaces.server.Registry_itf;
-import common.TchatMessage;
-import ihm.LoginFrame;
-import ihm.TchatFrame;
+import interfaces.client.ChatClientCallback;
+import interfaces.server.ChatService;
+import interfaces.server.ClientRegistry;
+import common.ChatMessage;
+import ihm.LoginDialog;
+import ihm.ChatFrame;
 
-public class HelloClient2 implements Accounting_itf {
+public class ChatClient implements ChatClientCallback {
 
     private final String name;
     private volatile int clientId;
-    private Hello2 tchatService;
-    private TchatFrame ihm;
+    private ChatService tchatService;
+    private ChatFrame ihm;
 
-    HelloClient2(String name) {
+    ChatClient(String name) {
         this.name = name;
         this.clientId = -1;
     }
@@ -74,7 +74,7 @@ public class HelloClient2 implements Accounting_itf {
         }
     }
 
-    private static void displayHistory(List<TchatMessage> history, String convId, int cursor, boolean displayAll) {
+    private static void displayHistory(List<ChatMessage> history, String convId, int cursor, boolean displayAll) {
         if (history == null || history.isEmpty()) {
             System.out.println("\n--- Aucun message dans \"" + convId + "\" ---");
             return;
@@ -82,7 +82,7 @@ public class HelloClient2 implements Accounting_itf {
         System.out.println("\n--- RÉCUPÉRATION DE L'HISTORIQUE (" + convId + ") ---");
         boolean hasNewMessages = false;
         if (history != null) {
-            for (TchatMessage msg : history) {
+            for (ChatMessage msg : history) {
                 if (msg.id > cursor) {
                     hasNewMessages = true;
                     break;
@@ -90,7 +90,7 @@ public class HelloClient2 implements Accounting_itf {
             }
         }
         
-        for (TchatMessage msg : history) {
+        for (ChatMessage msg : history) {
             
             if (msg.id > cursor) { // il y a des messages non lus, on les marque
                 System.out.println("[NOUVEAU] [" + msg.senderName + "] " + msg.content);
@@ -109,7 +109,7 @@ public class HelloClient2 implements Accounting_itf {
         System.out.println("------------------------------------\n");
     }
 
-    private static void displayConversationsList(Hello2 h2, int myId) {
+    private static void displayConversationsList(ChatService h2, int myId) {
         try {
             Map<String, Integer> convs = h2.getConversationsList(myId);
             System.out.println("\n=== VOS CONVERSATIONS ===");
@@ -168,11 +168,11 @@ public class HelloClient2 implements Accounting_itf {
         return name;
     }
 
-    public void setIhm(TchatFrame ihm) {
+    public void setIhm(ChatFrame ihm) {
         this.ihm = ihm;
     }
 
-    private static void runMenu(HelloClient2 client, Hello2 h2) {
+    private static void runMenu(ChatClient client, ChatService h2) {
         Scanner scanner = new Scanner(System.in);
         boolean running = true;
         String choice = "";
@@ -261,7 +261,7 @@ public class HelloClient2 implements Accounting_itf {
                     
                     try {           
                         boolean displayAll = histChoice.equals("1"); 
-                        List<TchatMessage> history;
+                        List<ChatMessage> history;
                         history = h2.getHistory(client.clientId, convId);
 
                         displayHistory(history, convId, cursor, displayAll);
@@ -285,20 +285,20 @@ public class HelloClient2 implements Accounting_itf {
         }
     }
 
-    public Hello2 getTchatService() {
+    public ChatService getTchatService() {
         return this.tchatService;
     }
 
-    public static HelloClient2 launchConnection(String host, int port, String pseudo, int requestedId) throws Exception {
+    public static ChatClient launchConnection(String host, int port, String pseudo, int requestedId) throws Exception {
         Registry registry = LocateRegistry.getRegistry(host, port);
-        Registry_itf registry_stub = (Registry_itf) registry.lookup("RegistryService");
-        Hello2 h2 = (Hello2) registry.lookup("Hello2Service");
+        ClientRegistry registry_stub = (ClientRegistry) registry.lookup("RegistryService");
+        ChatService h2 = (ChatService) registry.lookup("Hello2Service");
 
 
-        HelloClient2 client = new HelloClient2(pseudo);
+        ChatClient client = new ChatClient(pseudo);
         client.tchatService = h2; // On stocke le service dans l'instance
         
-        Accounting_itf client_stub = (Accounting_itf) UnicastRemoteObject.exportObject(client, 0);
+        ChatClientCallback client_stub = (ChatClientCallback) UnicastRemoteObject.exportObject(client, 0);
 
         // On s'enregistre auprès du serveur et on récupère l'ID assigné
         try {
@@ -342,7 +342,7 @@ public class HelloClient2 implements Accounting_itf {
             if (useIHM || args.length < 4) { // Si on a l'option --ihm ou pas assez d'arguments pour le mode console, on lance l'IHM
                 System.out.println("Lancement du mode Graphique...");
                 SwingUtilities.invokeLater(() -> {
-                    new LoginFrame(host, port).setVisible(true);
+                    new LoginDialog(host, port).setVisible(true);
                 });
             }
             else{
@@ -350,7 +350,7 @@ public class HelloClient2 implements Accounting_itf {
                     String pseudo = args[2];
                     int id = Integer.parseInt(args[3]);
 
-                    HelloClient2 client = launchConnection(host, port, pseudo, id);
+                    ChatClient client = launchConnection(host, port, pseudo, id);
                     System.out.println("Je suis " + client.name + " et mon id est " + client.clientId + ".");
                     System.out.println("Je me suis enregistré auprès du serveur.");
 

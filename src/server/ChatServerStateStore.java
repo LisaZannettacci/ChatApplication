@@ -3,23 +3,23 @@ package server;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import common.TchatMessage;
+import common.ChatMessage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
-public class ServerStateStore {
+public class ChatServerStateStore {
 
     // Cette classe interne sert de conteneur pour tout ce qu'on veut sauver
     public static class LoadedState {
         private final int nextClientId;
         private final Map<Integer, String> mapIdPseudo;
-        private final Map<String, List<TchatMessage>> allHistories;
+        private final Map<String, List<ChatMessage>> allHistories;
         private final Map<String, Map<Integer, Integer>> readCursors;
 
         public LoadedState(int nextClientId, Map<Integer, String> mapIdPseudo, 
-                           Map<String, List<TchatMessage>> allHistories,
+                           Map<String, List<ChatMessage>> allHistories,
                            Map<String, Map<Integer, Integer>> readCursors) {
             this.nextClientId = nextClientId;
             this.mapIdPseudo = (mapIdPseudo != null) ? mapIdPseudo : new HashMap<>();
@@ -30,7 +30,7 @@ public class ServerStateStore {
         public Map<Integer, String> getMapIdPseudo() { 
             return mapIdPseudo != null ? mapIdPseudo : new HashMap<>(); 
         }
-        public Map<String, List<TchatMessage>> getAllHistories() { 
+        public Map<String, List<ChatMessage>> getAllHistories() { 
             return allHistories != null ? allHistories : new HashMap<>(); 
         }
         public Map<String, Map<Integer, Integer>> getReadCursors() { 
@@ -43,7 +43,7 @@ public class ServerStateStore {
     private final Path filePath;
     private final Gson gson;
 
-    public ServerStateStore(String fileName) {
+    public ChatServerStateStore(String fileName) {
         this.filePath = Paths.get(fileName);
         // On crée un objet GSON capable de gérer les Maps proprement avec indentation
         this.gson = new GsonBuilder().setPrettyPrinting().create();
@@ -51,7 +51,7 @@ public class ServerStateStore {
 
     public synchronized void save(int nextClientId, 
                                  Map<Integer, String> mapIdPseudo,
-                                 Map<String, List<TchatMessage>> allHistories,
+                                 Map<String, List<ChatMessage>> allHistories,
                                  Map<String, Map<Integer, Integer>> readCursors) {
         
         // On emballe tout dans un objet LoadedState
@@ -71,7 +71,7 @@ public class ServerStateStore {
         }
 
         try (Reader reader = Files.newBufferedReader(filePath, StandardCharsets.UTF_8)) {
-            // GSON reconstruit tout l'arbre d'objets (Maps, Listes, TchatMessage) d'un coup
+            // GSON reconstruit tout l'arbre d'objets (Maps, Listes, ChatMessage) d'un coup
             LoadedState loaded = gson.fromJson(reader, LoadedState.class);
             
             if (loaded == null) {

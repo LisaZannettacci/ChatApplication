@@ -6,23 +6,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import common.TchatMessage;
-import interfaces.client.Accounting_itf;
-import interfaces.server.Hello2;
-import interfaces.server.Registry_itf;
+import common.ChatMessage;
+import interfaces.client.ChatClientCallback;
+import interfaces.server.ChatService;
+import interfaces.server.ClientRegistry;
 
 // Côté serveur
-public class Hello2Impl implements Hello2, Registry_itf {
+public class ChatServiceImpl implements ChatService, ClientRegistry {
     
     private String message;
 
-    private final Map<Accounting_itf, Integer> map_stubClient_id; // Associe un stub client à un identifiant unique.
-    private final Map<Integer, Accounting_itf> map_id_stubClient; // Associe un identifiant client à son stub (pour les callbacks).
+    private final Map<ChatClientCallback, Integer> map_stubClient_id; // Associe un stub client à un identifiant unique.
+    private final Map<Integer, ChatClientCallback> map_id_stubClient; // Associe un identifiant client à son stub (pour les callbacks).
     private final Map<Integer, String> map_id_pseudo; // Associe un identifiant client à son pseudo (pour les notifications et messages).
     private final Map<Integer, Integer> map_nb_sayHello_id; // Associe un identifiant client à son nombre d'appels sayHello.
-    private final ServerStateStore stateStore;
-    // Dans Hello2Impl.java
-    private final Map<String, List<TchatMessage>> allHistories = new HashMap<>(); // Associe un nom de conversation à sa liste de messages.
+    private final ChatServerStateStore stateStore;
+    // Dans ChatServiceImpl.java
+    private final Map<String, List<ChatMessage>> allHistories = new HashMap<>(); // Associe un nom de conversation à sa liste de messages.
                                                                                  // Le nom de conversation peut être "GENERAL" pour le tchat général, 
                                                                                  // ou "clientId1-clientId2" pour un message direct entre deux clients,
                                                                                  // avec clientId1 < clientId2 pour garantir un ordre logique.
@@ -31,17 +31,17 @@ public class Hello2Impl implements Hello2, Registry_itf {
     private int nextClientId;
     private int LIMITE_AVANT_NOTIFICATION = 10;
 
-    public Hello2Impl(String message) {
+    public ChatServiceImpl(String message) {
         this.message = message;
         this.map_stubClient_id = new HashMap<>();
         this.map_id_stubClient = new HashMap<>();
         this.map_id_pseudo = new HashMap<>();
         this.map_nb_sayHello_id = new HashMap<>();
-        this.stateStore = new ServerStateStore("server_state.json");
+        this.stateStore = new ChatServerStateStore("server_state.json");
 
         // On restaure uniquement nextClientId, map_id_pseudo, allHistories et readCursors.
         // Les autres maps restent vides au redémarrage (état "en ligne" non persistant).
-        ServerStateStore.LoadedState loaded = stateStore.load();
+        ChatServerStateStore.LoadedState loaded = stateStore.load();
         this.nextClientId = loaded.getNextClientId();
         this.map_id_pseudo.putAll(loaded.getMapIdPseudo());
         this.allHistories.putAll(loaded.getAllHistories());
@@ -72,7 +72,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
     }
 
     @Override
-    public synchronized int register(Accounting_itf client, String clientName, int requestedClientId) throws RemoteException {
+    public synchronized int register(ChatClientCallback client, String clientName, int requestedClientId) throws RemoteException {
         if (client == null) {
             throw new RemoteException("Client null");
         }
@@ -114,7 +114,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
         }
 
         // Si un stub actif est déjà branché à cet ID, on refuse la 2e session concurrente.
-        Accounting_itf previousStub = map_id_stubClient.get(requestedClientId);
+        ChatClientCallback previousStub = map_id_stubClient.get(requestedClientId);
         if (previousStub != null && previousStub != client) {
             throw new RemoteException("ID déjà connecté: " + requestedClientId + ". Déconnectez d'abord l'autre session.");
         }
@@ -139,7 +139,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
     }
     
     @Override
-    public synchronized String sayHello(Accounting_itf client) throws RemoteException {
+    public synchronized String sayHello(ChatClientCallback client) throws RemoteException {
         if (client != null && map_stubClient_id.containsKey(client)) {
             int clientId = map_stubClient_id.get(client);
             int nb_appels = map_nb_sayHello_id.get(clientId) + 1;
@@ -187,19 +187,19 @@ public class Hello2Impl implements Hello2, Registry_itf {
         }
         
         // On ajoute le message à l'historique de la conversation.
-        List<TchatMessage> history = allHistories.get(convId);
+        List<ChatMessage> history = allHistories.get(convId);
         if (history == null) {
             history = new ArrayList<>();
             allHistories.put(convId, history);
         }
-        TchatMessage newMessage = new TchatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
+        ChatMessage newMessage = new ChatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
         history.add(newMessage);
 
         // Puisque l'émetteur vient d'envoyer ce message, on considère qu'il a lu la conversation jusqu'ici.
         updateCursor(fromClientId, convId, newMessage.id);
         saveState();
 
-        Accounting_itf targetClient = map_id_stubClient.get(toClientId);
+        ChatClientCallback targetClient = map_id_stubClient.get(toClientId);
         String fromClientName = map_id_pseudo.get(fromClientId);
         String toClientName = map_id_pseudo.get(toClientId);
 
@@ -229,12 +229,12 @@ public class Hello2Impl implements Hello2, Registry_itf {
         String convId = "GENERAL";
 
         // On ajoute le message à l'historique de la conversation.
-        List<TchatMessage> history = allHistories.get(convId);
+        List<ChatMessage> history = allHistories.get(convId);
         if (history == null) {
             history = new ArrayList<>();
             allHistories.put(convId, history);
         }
-        TchatMessage newMessage = new TchatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
+        ChatMessage newMessage = new ChatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
         history.add(newMessage);
 
         // Puisque l'émetteur vient d'envoyer ce message, on considère qu'il a lu la conversation jusqu'ici.
@@ -245,7 +245,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
 
         for (Integer toClientId : map_id_pseudo.keySet()) {
             if (toClientId != fromClientId) {
-                Accounting_itf targetClient = map_id_stubClient.get(toClientId);
+                ChatClientCallback targetClient = map_id_stubClient.get(toClientId);
                 
                 if (targetClient != null) {
                     try {
@@ -261,9 +261,9 @@ public class Hello2Impl implements Hello2, Registry_itf {
     }
 
     @Override
-    public synchronized List<TchatMessage> getHistory(int userId, String convId) throws RemoteException {
+    public synchronized List<ChatMessage> getHistory(int userId, String convId) throws RemoteException {
         // On récupère l'historique complet de la conversation demandée.
-        List<TchatMessage> history = allHistories.getOrDefault(convId, new ArrayList<>());
+        List<ChatMessage> history = allHistories.getOrDefault(convId, new ArrayList<>());
         
         // On met à jour le curseur pour cet utilisateur
         if (!history.isEmpty()) {
@@ -281,7 +281,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
         // On force l'existence de GENERAL dans la liste retournée
         // On vérifie d'abord si elle a des messages non lus
         int generalUnread = 0;
-        List<TchatMessage> genHistory = allHistories.get("GENERAL");
+        List<ChatMessage> genHistory = allHistories.get("GENERAL");
         if (genHistory != null && !genHistory.isEmpty()) {
             int lastId = genHistory.get(genHistory.size() - 1).id;
             int userCursor = (readCursors.get("GENERAL") != null) 
@@ -294,7 +294,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
         // On parcourt le reste des historiques pour les messages privés
         for (String convId : allHistories.keySet()) {
             if (convId.contains(String.valueOf(userId)) && !convId.equals("GENERAL")) {
-                List<TchatMessage> history = allHistories.get(convId);
+                List<ChatMessage> history = allHistories.get(convId);
                 int lastMessageId = history.isEmpty() ? -1 : history.get(history.size() - 1).id;
                 
                 Map<Integer, Integer> convCursors = readCursors.get(convId);
@@ -328,7 +328,7 @@ public class Hello2Impl implements Hello2, Registry_itf {
     public synchronized void disconnect(int clientId) throws RemoteException {
         // Déconnexion : on supprime uniquement l'état "en ligne".
         // On conserve map_id_pseudo pour permettre la reconnexion avec le même ID.
-        Accounting_itf oldStub = map_id_stubClient.remove(clientId);
+        ChatClientCallback oldStub = map_id_stubClient.remove(clientId);
         if (oldStub != null) {
             map_stubClient_id.remove(oldStub);
             System.out.println("Client déconnecté: id=" + clientId + ", pseudo=" + map_id_pseudo.get(clientId));

@@ -13,13 +13,13 @@ import java.rmi.RemoteException;
 import java.util.List;
 import java.util.Map;
 
-import common.TchatMessage;
-import client.HelloClient2;
-import interfaces.server.Hello2;
+import common.ChatMessage;
+import client.ChatClient;
+import interfaces.server.ChatService;
 
-public class TchatFrame extends JFrame {
-    private HelloClient2 client;
-    private Hello2 tchatService;
+public class ChatFrame extends JFrame {
+    private ChatClient client;
+    private ChatService tchatService;
     private String currentConv = null;
 
     // Composants IHM
@@ -57,7 +57,7 @@ public class TchatFrame extends JFrame {
         }
     }
 
-    public TchatFrame(HelloClient2 client, Hello2 tchatService) {
+    public ChatFrame(ChatClient client, ChatService tchatService) {
         this.client = client;
         this.tchatService = tchatService;
 
@@ -279,11 +279,11 @@ public class TchatFrame extends JFrame {
         try {
             int myId = client.getClientId();
             int lastReadCursor = tchatService.getCursor(myId, currentConv);
-            List<TchatMessage> history = tchatService.getHistory(myId, currentConv);
+            List<ChatMessage> history = tchatService.getHistory(myId, currentConv);
             
             tchatArea.setText(""); // On vide
             
-            for (TchatMessage m : history) {
+            for (ChatMessage m : history) {
                 boolean isMe = (m.senderId == myId);
                 String prefix = (m.id > lastReadCursor) ? "[NOUVEAU] " : "";
                 appendStyledMessage(m.senderName, prefix + m.content, isMe);

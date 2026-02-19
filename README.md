@@ -11,15 +11,15 @@ Execution :
 ```bash
 java -Djava.rmi.server.hostname=localhost \
      -cp "lib/*:classes" \
-     server.HelloServer 6090
+     server.ChatServer 6090
 
 # Interface textuelle :
 java -cp "lib/*:classes" \
-     client.HelloClient2 localhost 6090 <nom_client> <id_client>
+     client.ChatClient localhost 6090 <nom_client> <id_client>
 
 # Interface graphique :
 java -cp "lib/*:classes" \
-      client.HelloClient2 localhost 6090 <nom_client> <id_client> --ihm
+      client.ChatClient localhost 6090 <nom_client> <id_client> --ihm
 
 ```
 
