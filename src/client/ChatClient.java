@@ -56,18 +56,6 @@ public class ChatClient implements ChatClientCallback {
     }
     
     /**
-     * Notification du serveur indiquant le nombre d'appels effectués.
-     * Callback appelé périodiquement par le serveur pour informer le client
-     * du nombre d'invocations de méthodes RMI qu'il a effectuées.
-     * 
-     * @param number le nombre total d'appels effectués
-     * @throws RemoteException si une erreur de communication RMI survient
-     */
-	public void numberOfCalls(int number) throws RemoteException {
-        System.out.println("Notification du serveur : Vous avez effectué " + number + " appels.");
-    }
-
-    /**
      * Définit l'identifiant du client.
      * Callback appelé par le serveur lors de l'enregistrement/reconnexion
      * pour communiquer l'ID attribué ou validé.
