@@ -6,13 +6,16 @@ Compilation :
 bash compilation.sh
 ```
 
-Execution :
+Dans un terminal, pour lancer le serveur :
 
 ```bash
 java -Djava.rmi.server.hostname=localhost \
      -cp "lib/*:classes" \
      server.ChatServer 6090
+```
 
+Dans un autre terminal, pour lancer un client :
+```bash
 # Interface textuelle :
 java -cp "lib/*:classes" \
      client.ChatClient localhost 6090 <nom_client> <id_client>

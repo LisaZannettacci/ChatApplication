@@ -243,56 +243,65 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
      *         - le message est vide ou null
      */
     @Override
-    public synchronized String sendDirectMessage(int fromClientId, int toClientId, String message) throws RemoteException {
-        // from/to doivent exister en tant qu'identités connues.
-        if (!map_id_pseudo.containsKey(fromClientId)) {
-            throw new RemoteException("Expéditeur inconnu: id=" + fromClientId);
-        }
-        if (!map_id_pseudo.containsKey(toClientId)) {
-            throw new RemoteException("Destinataire inconnu: id=" + toClientId);
-        }
-
+    public String sendDirectMessage(int fromClientId, int toClientId, String message) throws RemoteException {
+        ChatClientCallback targetClient;
+        String fromClientName;
+        String toClientName;
+        String content;
         String convId;
-        if (fromClientId < toClientId) {
-            convId = fromClientId + "-" + toClientId;
-        } else {
-            convId = toClientId + "-" + fromClientId;
+
+        // Section synchronisée : mise à jour de l'état interne uniquement
+        synchronized (this) {
+            // from/to doivent exister en tant qu'identités connues.
+            if (!map_id_pseudo.containsKey(fromClientId)) {
+                throw new RemoteException("Expéditeur inconnu: id=" + fromClientId);
+            }
+            if (!map_id_pseudo.containsKey(toClientId)) {
+                throw new RemoteException("Destinataire inconnu: id=" + toClientId);
+            }
+
+            if (fromClientId < toClientId) {
+                convId = fromClientId + "-" + toClientId;
+            } else {
+                convId = toClientId + "-" + fromClientId;
+            }
+
+            content = (message == null) ? "" : message.trim();
+            if (content.isEmpty()) {
+                throw new RemoteException("Le message ne peut pas être vide.");
+            }
+            
+            // On ajoute le message à l'historique de la conversation.
+            List<ChatMessage> history = allHistories.get(convId);
+            if (history == null) {
+                history = new ArrayList<>();
+                allHistories.put(convId, history);
+            }
+            ChatMessage newMessage = new ChatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
+            history.add(newMessage);
+
+            // Puisque l'émetteur vient d'envoyer ce message, on considère qu'il a lu la conversation jusqu'ici.
+            updateCursor(fromClientId, convId, newMessage.id);
+            saveState();
+
+            targetClient = map_id_stubClient.get(toClientId);
+            fromClientName = map_id_pseudo.get(fromClientId);
+            toClientName = map_id_pseudo.get(toClientId);
         }
 
-        String content = (message == null) ? "" : message.trim();
-        if (content.isEmpty()) {
-            throw new RemoteException("Le message ne peut pas être vide.");
-        }
-        
-        // On ajoute le message à l'historique de la conversation.
-        List<ChatMessage> history = allHistories.get(convId);
-        if (history == null) {
-            history = new ArrayList<>();
-            allHistories.put(convId, history);
-        }
-        ChatMessage newMessage = new ChatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
-        history.add(newMessage);
-
-        // Puisque l'émetteur vient d'envoyer ce message, on considère qu'il a lu la conversation jusqu'ici.
-        updateCursor(fromClientId, convId, newMessage.id);
-        saveState();
-
-        ChatClientCallback targetClient = map_id_stubClient.get(toClientId);
-        String fromClientName = map_id_pseudo.get(fromClientId);
-        String toClientName = map_id_pseudo.get(toClientId);
-
+        // Callback HORS du bloc synchronized pour éviter un deadlock RMI :
+        // le client appelé pourrait rappeler le serveur (getHistory, etc.)
         if (targetClient != null) {
             try {
                 targetClient.receiveMessage(fromClientId, fromClientName, content);
-                // On met à jour son curseur de lecture puisqu'on vient de lui pousser le message
-                // updateCursor(toClientId, convId, newMessage.id);
             } catch (RemoteException e) {
                 // Si le callback échoue, on considère le client déconnecté
-                map_id_stubClient.remove(toClientId);
+                synchronized (this) {
+                    map_id_stubClient.remove(toClientId);
+                }
                 System.err.println("Callback échec pour client id=" + toClientId + ", stub supprimé.");
             }
         }
-        saveState();
         return "Message envoyé à " + toClientName + " (id=" + toClientId + ").";
     }
 
@@ -309,48 +318,61 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
      *         - le message est vide ou null
      */
     @Override
-    public synchronized String sendGeneralMessage(int fromClientId, String message) throws RemoteException {
-        if (!map_id_pseudo.containsKey(fromClientId)) {
-            throw new RemoteException("Expéditeur inconnu: id=" + fromClientId);
-        }
-        String content = (message == null) ? "" : message.trim();
-        if (content.isEmpty()) {
-            throw new RemoteException("Le message ne peut pas être vide.");
-        }
-
+    public String sendGeneralMessage(int fromClientId, String message) throws RemoteException {
+        String fromClientName;
+        String content;
         String convId = "GENERAL";
+        // Liste des clients à notifier (collectée sous verrou)
+        Map<Integer, ChatClientCallback> toNotify = new HashMap<>();
 
-        // On ajoute le message à l'historique de la conversation.
-        List<ChatMessage> history = allHistories.get(convId);
-        if (history == null) {
-            history = new ArrayList<>();
-            allHistories.put(convId, history);
-        }
-        ChatMessage newMessage = new ChatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
-        history.add(newMessage);
+        // Section synchronisée : mise à jour de l'état interne uniquement
+        synchronized (this) {
+            if (!map_id_pseudo.containsKey(fromClientId)) {
+                throw new RemoteException("Expéditeur inconnu: id=" + fromClientId);
+            }
+            content = (message == null) ? "" : message.trim();
+            if (content.isEmpty()) {
+                throw new RemoteException("Le message ne peut pas être vide.");
+            }
 
-        // Puisque l'émetteur vient d'envoyer ce message, on considère qu'il a lu la conversation jusqu'ici.
-        updateCursor(fromClientId, convId, newMessage.id);
-        saveState();
+            // On ajoute le message à l'historique de la conversation.
+            List<ChatMessage> history = allHistories.get(convId);
+            if (history == null) {
+                history = new ArrayList<>();
+                allHistories.put(convId, history);
+            }
+            ChatMessage newMessage = new ChatMessage(history.size(), fromClientId, map_id_pseudo.get(fromClientId), message);
+            history.add(newMessage);
 
-        String fromClientName = map_id_pseudo.get(fromClientId);
+            // Puisque l'émetteur vient d'envoyer ce message, on considère qu'il a lu la conversation jusqu'ici.
+            updateCursor(fromClientId, convId, newMessage.id);
+            saveState();
 
-        for (Integer toClientId : map_id_pseudo.keySet()) {
-            if (toClientId != fromClientId) {
-                ChatClientCallback targetClient = map_id_stubClient.get(toClientId);
-                
-                if (targetClient != null) {
-                    try {
-                        targetClient.receiveGeneralMessage(fromClientId, fromClientName, content);
-                    } catch (RemoteException e) {
-                        // Si le callback échoue, on considère le client déconnecté
-                        map_id_stubClient.remove(toClientId);
-                        System.err.println("Callback échec pour client id=" + toClientId + ", stub supprimé.");
+            fromClientName = map_id_pseudo.get(fromClientId);
+
+            // On collecte les stubs à notifier sous verrou
+            for (Integer toClientId : map_id_pseudo.keySet()) {
+                if (toClientId != fromClientId) {
+                    ChatClientCallback targetClient = map_id_stubClient.get(toClientId);
+                    if (targetClient != null) {
+                        toNotify.put(toClientId, targetClient);
                     }
                 }
             }
         }
-        saveState();
+
+        // Callbacks HORS du bloc synchronized pour éviter un deadlock RMI
+        for (Map.Entry<Integer, ChatClientCallback> entry : toNotify.entrySet()) {
+            try {
+                entry.getValue().receiveGeneralMessage(fromClientId, fromClientName, content);
+            } catch (RemoteException e) {
+                // Si le callback échoue, on considère le client déconnecté
+                synchronized (this) {
+                    map_id_stubClient.remove(entry.getKey());
+                }
+                System.err.println("Callback échec pour client id=" + entry.getKey() + ", stub supprimé.");
+            }
+        }
         return "Message envoyé à tous les clients connectés.";
     }
 
