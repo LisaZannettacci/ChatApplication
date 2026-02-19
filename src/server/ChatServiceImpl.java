@@ -11,32 +11,73 @@ import interfaces.client.ChatClientCallback;
 import interfaces.server.ChatService;
 import interfaces.server.ClientRegistry;
 
-// Côté serveur
+/**
+ * Implémentation principale du serveur de chat RMI.
+ * Cette classe implémente les interfaces ChatService et ClientRegistry,
+ * gérant l'enregistrement des clients, l'envoi de messages, la persistance
+ * et les callbacks vers les clients.
+ * 
+ * Fonctionnalités principales :
+ * - Enregistrement et reconnexion sécurisée des clients
+ * - Envoi de messages directs (privés) et généraux (broadcast)
+ * - Gestion d'historiques de conversations avec curseurs de lecture
+ * - Persistance de l'état (IDs, pseudos, historiques, curseurs)
+ * - Callbacks pour notifier les clients des messages entrants
+ * 
+ * Variables membres :
+ * - message : message 
+ * - map_stubClient_id : associe un stub client à son ID
+ * - map_id_stubClient : associe un ID à son stub client (pour callbacks)
+ * - map_id_pseudo : associe un ID à son pseudo (persistant)
+ * - stateStore : gestionnaire de persistance JSON
+ * - allHistories : historiques de toutes les conversations
+ * - readCursors : curseurs de lecture par conversation et utilisateur
+ * - nextClientId : prochain ID à attribuer
+ * 
+ * Toutes les méthodes publiques sont synchronisées pour garantir la thread-safety.
+ * 
+ * @see ChatService
+ * @see ClientRegistry
+ * @see ChatServerStateStore
+ */
 public class ChatServiceImpl implements ChatService, ClientRegistry {
     
+    /** Message */
     private String message;
 
-    private final Map<ChatClientCallback, Integer> map_stubClient_id; // Associe un stub client à un identifiant unique.
-    private final Map<Integer, ChatClientCallback> map_id_stubClient; // Associe un identifiant client à son stub (pour les callbacks).
-    private final Map<Integer, String> map_id_pseudo; // Associe un identifiant client à son pseudo (pour les notifications et messages).
-    private final Map<Integer, Integer> map_nb_sayHello_id; // Associe un identifiant client à son nombre d'appels sayHello.
+    /** Map stub client -> ID client */
+    private final Map<ChatClientCallback, Integer> map_stubClient_id;
+    
+    /** Map ID client -> stub client (pour les callbacks) */
+    private final Map<Integer, ChatClientCallback> map_id_stubClient;
+    
+    /** Map ID client -> pseudo (persistante) */
+    private final Map<Integer, String> map_id_pseudo;
+        
+    /** Gestionnaire de persistance JSON */
     private final ChatServerStateStore stateStore;
-    // Dans ChatServiceImpl.java
-    private final Map<String, List<ChatMessage>> allHistories = new HashMap<>(); // Associe un nom de conversation à sa liste de messages.
-                                                                                 // Le nom de conversation peut être "GENERAL" pour le tchat général, 
-                                                                                 // ou "clientId1-clientId2" pour un message direct entre deux clients,
-                                                                                 // avec clientId1 < clientId2 pour garantir un ordre logique.
-    private final Map<String, Map<Integer, Integer>> readCursors = new HashMap<>();  // Associe un nom de conversation à une map qui associe chaque clientId 
-                                                                                     // au dernier index de message lu dans allHistories pour cette conversation.
+    
+    /** Historiques de toutes les conversations : convId -> List<ChatMessage> */
+    private final Map<String, List<ChatMessage>> allHistories = new HashMap<>();
+    
+    /** Curseurs de lecture : convId -> (userId -> lastReadMessageId) */
+    private final Map<String, Map<Integer, Integer>> readCursors = new HashMap<>();
+    
+    /** Prochain ID client à attribuer */
     private int nextClientId;
-    private int LIMITE_AVANT_NOTIFICATION = 10;
-
+    
+    /**
+     * Constructeur de ChatServiceImpl.
+     * Initialise toutes les structures de données et charge l'état persisté depuis le fichier JSON.
+     * Les maps de stubs (état "en ligne") restent vides au démarrage.
+     * 
+     * @param message message
+     */
     public ChatServiceImpl(String message) {
         this.message = message;
         this.map_stubClient_id = new HashMap<>();
         this.map_id_stubClient = new HashMap<>();
         this.map_id_pseudo = new HashMap<>();
-        this.map_nb_sayHello_id = new HashMap<>();
         this.stateStore = new ChatServerStateStore("server_state.json");
 
         // On restaure uniquement nextClientId, map_id_pseudo, allHistories et readCursors.
@@ -52,6 +93,14 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
         );
     }
 
+    /**
+     * Normalise le nom d'un client.
+     * Supprime les espaces en début et fin, et génère un nom par défaut si vide ou null.
+     * 
+     * @param clientName le nom fourni par le client
+     * @param clientId l'ID du client (utilisé pour générer un nom par défaut)
+     * @return le nom normalisé (non-null, non-vide)
+     */
     private String normalizeClientName(String clientName, int clientId) {
         // trim() => on supprime les espaces en début et fin de chaîne.
         return (clientName == null || clientName.trim().isEmpty())
@@ -59,6 +108,15 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
             : clientName.trim();
     }
 
+    /**
+     * Met à jour le curseur de lecture d'un utilisateur pour une conversation.
+     * Le curseur indique le dernier message lu par l'utilisateur.
+     * Méthode synchronisée pour garantir la cohérence des curseurs.
+     * 
+     * @param userId l'ID de l'utilisateur dont on met à jour le curseur
+     * @param convId l'ID de la conversation (ex: "GENERAL" ou "1-2")
+     * @param lastMessageId l'ID du dernier message lu
+     */
     private synchronized void updateCursor(int userId, String convId, int lastMessageId) {
         Map<Integer, Integer> convCursors = readCursors.get(convId);
         if (convCursors == null) { // si la conversation n'avait pas encore de curseurs, on crée une nouvelle map pour cette conversation
@@ -71,6 +129,30 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
         convCursors.put(userId, lastMessageId);
     }
 
+    /**
+     * Enregistre ou reconnecte un client au serveur.
+     * 
+     * Cas 1 (requestedClientId == 0) : Première connexion
+     *   - Le serveur attribue un nouvel ID (nextClientId++)
+     *   - Crée les associations stub<->ID, ID<->pseudo
+     *   - Persiste l'état
+     * 
+     * Cas 2 (requestedClientId > 0) : Reconnexion
+     *   - Vérifie que l'ID existe et appartient au pseudo fourni
+     *   - Refuse les sessions concurrentes sur le même ID
+     *   - Réactive la session et met à jour les maps
+     * 
+     * @param client le stub du client (implémentation de ChatClientCallback)
+     * @param clientName le pseudo demandé par le client
+     * @param requestedClientId l'ID demandé (0 pour nouveau, existant pour reconnexion)
+     * @return l'ID attribué ou validé
+     * @throws RemoteException si :
+     *         - le client est null
+     *         - l'ID demandé est invalide (< 0)
+     *         - l'ID demandé est inconnu
+     *         - le pseudo ne correspond pas au propriétaire de l'ID
+     *         - l'ID est déjà connecté (session concurrente)
+     */
     @Override
     public synchronized int register(ChatClientCallback client, String clientName, int requestedClientId) throws RemoteException {
         if (client == null) {
@@ -85,7 +167,6 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
             map_stubClient_id.put(client, newClientId);
             map_id_stubClient.put(newClientId, client);
             map_id_pseudo.put(newClientId, safeClientName);
-            map_nb_sayHello_id.put(newClientId, 0);
             client.setClientId(newClientId);
             saveState();
 
@@ -129,7 +210,6 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
         map_stubClient_id.put(client, requestedClientId);
         map_id_stubClient.put(requestedClientId, client);
         map_id_pseudo.put(requestedClientId, ownerName);
-        map_nb_sayHello_id.putIfAbsent(requestedClientId, 0);
 
         // On appelle la méthode de callback du client pour lui transmettre son ID.
         client.setClientId(requestedClientId);
@@ -138,32 +218,30 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
         return requestedClientId;
     }
     
-    @Override
-    public synchronized String sayHello(ChatClientCallback client) throws RemoteException {
-        if (client != null && map_stubClient_id.containsKey(client)) {
-            int clientId = map_stubClient_id.get(client);
-            int nb_appels = map_nb_sayHello_id.get(clientId) + 1;
-            map_nb_sayHello_id.put(clientId, nb_appels);
 
-            if (nb_appels % LIMITE_AVANT_NOTIFICATION == 0) {
-                try {
-                    client.numberOfCalls(nb_appels);
-
-                } catch (RemoteException e) {
-                    System.err.println("Erreur lors de la notification du client : " + e.getMessage());
-                }
-            }
-        }
-		else { 
-			throw new RemoteException("Client non enregistré");
-        }
-		return message;
-    }
-
+    /**
+     * Sauvegarde l'état du serveur dans le fichier JSON via le gestionnaire de persistance.
+     */
     private void saveState() {
         stateStore.save(nextClientId, map_id_pseudo, allHistories, readCursors);
     }
 
+    /**
+     * Envoie un message direct (privé) entre deux clients.
+     * Crée ou enrichit l'historique de la conversation, met à jour le curseur de l'émetteur,
+     * et tente d'appeler le callback du destinataire s'il est connecté.
+     * 
+     * Le nom de la conversation est formaté : "idMin-idMax" (ex: "1-3") pour garantir
+     * un identifiant unique et ordonné.
+     * 
+     * @param fromClientId l'ID de l'expéditeur
+     * @param toClientId l'ID du destinataire
+     * @param message le contenu du message (doit être non-vide après trim)
+     * @return un message de confirmation
+     * @throws RemoteException si :
+     *         - l'expéditeur ou le destinataire est inconnu
+     *         - le message est vide ou null
+     */
     @Override
     public synchronized String sendDirectMessage(int fromClientId, int toClientId, String message) throws RemoteException {
         // from/to doivent exister en tant qu'identités connues.
@@ -209,13 +287,27 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
                 // On met à jour son curseur de lecture puisqu'on vient de lui pousser le message
                 // updateCursor(toClientId, convId, newMessage.id);
             } catch (RemoteException e) {
+                // Si le callback échoue, on considère le client déconnecté
                 map_id_stubClient.remove(toClientId);
+                System.err.println("Callback échec pour client id=" + toClientId + ", stub supprimé.");
             }
         }
         saveState();
         return "Message envoyé à " + toClientName + " (id=" + toClientId + ").";
     }
 
+    /**
+     * Envoie un message sur le tchat général (broadcast).
+     * Le message est ajouté à l'historique "GENERAL" et diffusé à tous les clients
+     * connectés (sauf l'émetteur) via callbacks.
+     * 
+     * @param fromClientId l'ID de l'expéditeur
+     * @param message le contenu du message (doit être non-vide après trim)
+     * @return un message de confirmation
+     * @throws RemoteException si :
+     *         - l'expéditeur est inconnu
+     *         - le message est vide ou null
+     */
     @Override
     public synchronized String sendGeneralMessage(int fromClientId, String message) throws RemoteException {
         if (!map_id_pseudo.containsKey(fromClientId)) {
@@ -251,7 +343,9 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
                     try {
                         targetClient.receiveGeneralMessage(fromClientId, fromClientName, content);
                     } catch (RemoteException e) {
+                        // Si le callback échoue, on considère le client déconnecté
                         map_id_stubClient.remove(toClientId);
+                        System.err.println("Callback échec pour client id=" + toClientId + ", stub supprimé.");
                     }
                 }
             }
@@ -260,6 +354,16 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
         return "Message envoyé à tous les clients connectés.";
     }
 
+    /**
+     * Récupère l'historique complet d'une conversation.
+     * Met automatiquement à jour le curseur de lecture de l'utilisateur
+     * au dernier message de la conversation.
+     * 
+     * @param userId l'ID de l'utilisateur demandant l'historique
+     * @param convId l'ID de la conversation (ex: "GENERAL" ou "1-2")
+     * @return la liste des messages de la conversation (vide si inexistante)
+     * @throws RemoteException en cas d'erreur RMI
+     */
     @Override
     public synchronized List<ChatMessage> getHistory(int userId, String convId) throws RemoteException {
         // On récupère l'historique complet de la conversation demandée.
@@ -274,6 +378,14 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
         return history; 
     }
 
+    /**
+     * Retourne la liste des conversations d'un utilisateur avec leur compteur de messages non lus.
+     * La conversation "GENERAL" est toujours incluse.
+     * 
+     * @param userId l'ID de l'utilisateur
+     * @return une map convId -> nombre de messages non lus
+     * @throws RemoteException en cas d'erreur RMI
+     */
     @Override
     public synchronized Map<String, Integer> getConversationsList(int userId) throws RemoteException {
         Map<String, Integer> userConvs = new HashMap<>();
@@ -306,6 +418,15 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
         return userConvs;
     }
 
+    /**
+     * Retourne le curseur de lecture d'un utilisateur pour une conversation.
+     * Le curseur correspond à l'ID du dernier message lu.
+     * 
+     * @param userId l'ID de l'utilisateur
+     * @param convId l'ID de la conversation
+     * @return l'ID du dernier message lu, ou -1 si aucun message n'a été lu
+     * @throws RemoteException en cas d'erreur RMI
+     */
     @Override
     public synchronized int getCursor(int userId, String convId) throws RemoteException {
         Map<Integer, Integer> convCursors = readCursors.get(convId);
@@ -319,11 +440,26 @@ public class ChatServiceImpl implements ChatService, ClientRegistry {
         return convCursors.getOrDefault(userId, -1);
     }
 
+    /**
+     * Retourne le pseudo d'un client à partir de son ID.
+     * 
+     * @param clientId l'ID du client
+     * @return le pseudo du client, ou "Inconnu" si l'ID n'existe pas
+     * @throws RemoteException en cas d'erreur RMI
+     */
     @Override
     public synchronized String getClientPseudo(int clientId) throws RemoteException {
         return map_id_pseudo.getOrDefault(clientId, "Inconnu");
     }
 
+    /**
+     * Déconnecte un client du serveur.
+     * Supprime le stub de la map des clients connectés mais conserve
+     * l'association ID<->pseudo pour permettre la reconnexion.
+     * 
+     * @param clientId l'ID du client à déconnecter
+     * @throws RemoteException en cas d'erreur RMI
+     */
     @Override
     public synchronized void disconnect(int clientId) throws RemoteException {
         // Déconnexion : on supprime uniquement l'état "en ligne".

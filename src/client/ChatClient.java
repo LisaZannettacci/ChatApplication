@@ -424,7 +424,7 @@ public class ChatClient implements ChatClientCallback {
     public static ChatClient launchConnection(String host, int port, String pseudo, int requestedId) throws Exception {
         Registry registry = LocateRegistry.getRegistry(host, port);
         ClientRegistry registry_stub = (ClientRegistry) registry.lookup("RegistryService");
-        ChatService h2 = (ChatService) registry.lookup("Hello2Service");
+        ChatService h2 = (ChatService) registry.lookup("ChatService");
 
 
         ChatClient client = new ChatClient(pseudo);

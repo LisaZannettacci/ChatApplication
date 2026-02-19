@@ -8,7 +8,6 @@ import common.ChatMessage;
 import interfaces.client.ChatClientCallback;
 
 public interface ChatService extends Remote {
-	public String sayHello(ChatClientCallback client) throws RemoteException;
 	public String sendDirectMessage(int fromClientId, int toClientId, String message) throws RemoteException;
 	public String sendGeneralMessage(int fromClientId, String message) throws RemoteException;
 	public List<ChatMessage> getHistory(int userId, String convId) throws RemoteException;
