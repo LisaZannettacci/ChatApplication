@@ -14,32 +14,92 @@ import common.ChatMessage;
 import ihm.LoginDialog;
 import ihm.ChatFrame;
 
+/**
+ * Classe principale du client de chat RMI.
+ * Cette classe implémente l'interface ChatClientCallback pour recevoir les callbacks
+ * du serveur (messages entrants, notifications).
+ * Elle gère à la fois le mode console (menu interactif) et le mode IHM (interface graphique Swing).
+ * 
+ * Variables membres :
+ * - name : le pseudo du client.
+ * - clientId : l'identifiant unique attribué par le serveur.
+ * - tchatService : référence au service RMI distant (ChatService) pour envoyer messages et récupérer historiques
+ * - ihm : référence optionnelle à l'interface graphique (ChatFrame), null en mode console
+ * 
+ * @see ChatClientCallback
+ * @see ChatService
+ * @see ChatFrame
+ */
 public class ChatClient implements ChatClientCallback {
 
+    /** Le nom (pseudo) du client, défini à la construction */
     private final String name;
+    
+    /** L'identifiant unique du client, attribué par le serveur. -1 si non encore assigné */
     private volatile int clientId;
+    
+    /** Référence au service de chat distant (objet RMI) */
     private ChatService tchatService;
+    
+    /** Référence à l'interface graphique (null si mode console) */
     private ChatFrame ihm;
 
+    /**
+     * Constructeur privé de ChatClient.
+     * Initialise le client avec un nom et un ID par défaut (-1).
+     * 
+     * @param name le pseudo du client
+     */
     ChatClient(String name) {
         this.name = name;
         this.clientId = -1;
     }
     
+    /**
+     * Notification du serveur indiquant le nombre d'appels effectués.
+     * Callback appelé périodiquement par le serveur pour informer le client
+     * du nombre d'invocations de méthodes RMI qu'il a effectuées.
+     * 
+     * @param number le nombre total d'appels effectués
+     * @throws RemoteException si une erreur de communication RMI survient
+     */
 	public void numberOfCalls(int number) throws RemoteException {
         System.out.println("Notification du serveur : Vous avez effectué " + number + " appels.");
     }
 
+    /**
+     * Définit l'identifiant du client.
+     * Callback appelé par le serveur lors de l'enregistrement/reconnexion
+     * pour communiquer l'ID attribué ou validé.
+     * 
+     * @param clientId l'identifiant unique attribué par le serveur
+     * @throws RemoteException si une erreur de communication RMI survient
+     */
     @Override
     public void setClientId(int clientId) throws RemoteException {
         this.clientId = clientId;
     }
 
+    /**
+     * Retourne l'identifiant actuel du client.
+     * 
+     * @return l'ID du client, ou -1 si non encore assigné
+     * @throws RemoteException si une erreur de communication RMI survient
+     */
     @Override
     public int getClientId() throws RemoteException {
         return this.clientId;
     }
 
+    /**
+     * Callback appelé par le serveur lors de la réception d'un message direct.
+     * Si l'IHM est active, délègue l'affichage à ChatFrame.
+     * Sinon, affiche le message dans la console et met à jour le curseur de lecture.
+     * 
+     * @param fromClientId l'ID de l'expéditeur du message
+     * @param fromClientName le pseudo de l'expéditeur
+     * @param message le contenu du message reçu
+     */
     @Override
     public void receiveMessage(int fromClientId, String fromClientName, String message) {
         if (ihm != null) {
@@ -58,6 +118,16 @@ public class ChatClient implements ChatClientCallback {
         }
     }
 
+    /**
+     * Callback appelé par le serveur lors de la réception d'un message sur le tchat général.
+     * Si l'IHM est active, délègue l'affichage à ChatFrame.
+     * Sinon, affiche le message dans la console et met à jour le curseur de lecture.
+     * 
+     * @param fromClientId l'ID de l'expéditeur du message
+     * @param fromClientName le pseudo de l'expéditeur
+     * @param message le contenu du message reçu
+     * @throws RemoteException si une erreur de communication RMI survient
+     */
     @Override
     public void receiveGeneralMessage(int fromClientId, String fromClientName, String message) throws RemoteException {
         if (ihm != null) {
@@ -74,6 +144,15 @@ public class ChatClient implements ChatClientCallback {
         }
     }
 
+    /**
+     * Affiche l'historique d'une conversation dans la console.
+     * Distingue les messages lus (curseur < id) des nouveaux messages (curseur >= id).
+     * 
+     * @param history la liste des messages de la conversation
+     * @param convId l'identifiant de la conversation (ex: "GENERAL" ou "1-2")
+     * @param cursor la position du curseur de lecture de l'utilisateur
+     * @param displayAll true pour afficher tous les messages, false pour afficher seulement les nouveaux
+     */
     private static void displayHistory(List<ChatMessage> history, String convId, int cursor, boolean displayAll) {
         if (history == null || history.isEmpty()) {
             System.out.println("\n--- Aucun message dans \"" + convId + "\" ---");
@@ -109,6 +188,13 @@ public class ChatClient implements ChatClientCallback {
         System.out.println("------------------------------------\n");
     }
 
+    /**
+     * Affiche la liste des conversations de l'utilisateur avec leur compteur de messages non lus.
+     * Interroge le serveur via RMI pour obtenir la liste des conversations.
+     * 
+     * @param h2 le service de chat distant
+     * @param myId l'identifiant du client demandeur
+     */
     private static void displayConversationsList(ChatService h2, int myId) {
         try {
             Map<String, Integer> convs = h2.getConversationsList(myId);
@@ -134,6 +220,10 @@ public class ChatClient implements ChatClientCallback {
         }
     }
 
+    /**
+     * Affiche le menu interactif du mode console.
+     * Liste les fonctionnalités disponibles pour l'utilisateur.
+     */
     private static void displayMenu() {
         System.out.println("\n==== MENU ====\n" +
                 "2. Envoyer message au tchat général\n" +
@@ -150,6 +240,13 @@ public class ChatClient implements ChatClientCallback {
                 "Choix : ");
     }
 
+    /**
+     * Extrait le message d'erreur le plus profond d'une RemoteException.
+     * Parcourt la chaîne des causes pour trouver le message d'origine.
+     * 
+     * @param e l'exception RMI dont on veut extraire le message
+     * @return le message d'erreur le plus spécifique, ou "Erreur distante." si aucun message n'est disponible
+     */
     private static String extractRemoteMessage(RemoteException e) {
         Throwable current = e;
         while (current.getCause() != null) {
@@ -164,14 +261,33 @@ public class ChatClient implements ChatClientCallback {
         return "Erreur distante.";
     }
 
+    /**
+     * Retourne le nom (pseudo) du client.
+     * 
+     * @return le pseudo du client
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * Définit la référence à l'interface graphique.
+     * Permet de basculer du mode console au mode IHM.
+     * 
+     * @param ihm la fenêtre de chat (ChatFrame) à associer
+     */
     public void setIhm(ChatFrame ihm) {
         this.ihm = ihm;
     }
 
+    /**
+     * Boucle principale du menu interactif en mode console.
+     * Affiche le menu, lit les choix de l'utilisateur et appelle les méthodes RMI correspondantes.
+     * Gère les options : envoi de messages (général/direct), récupération d'historique, déconnexion.
+     * 
+     * @param client l'instance du client connecté
+     * @param h2 le service de chat distant
+     */
     private static void runMenu(ChatClient client, ChatService h2) {
         Scanner scanner = new Scanner(System.in);
         boolean running = true;
@@ -283,12 +399,28 @@ public class ChatClient implements ChatClientCallback {
                     System.out.println("Choix invalide.");
             }
         }
+        scanner.close(); // Fermeture du scanner pour éviter les fuites de ressources
     }
 
+    /**
+     * Retourne la référence au service de chat distant.
+     * 
+     * @return l'objet RMI ChatService
+     */
     public ChatService getTchatService() {
         return this.tchatService;
     }
 
+    /**
+     * Établit une connexion RMI avec le serveur et enregistre le client.
+     * 
+     * @param host l'adresse du serveur RMI (ex: "localhost" ou une IP)
+     * @param port le port du registre RMI (ex: 6090)
+     * @param pseudo le nom souhaité par le client
+     * @param requestedId l'ID demandé (0 pour nouvelle connexion, ID existant pour reconnexion)
+     * @return une instance de ChatClient connectée et enregistrée
+     * @throws Exception si la connexion ou l'enregistrement échoue (RemoteException, etc.)
+     */
     public static ChatClient launchConnection(String host, int port, String pseudo, int requestedId) throws Exception {
         Registry registry = LocateRegistry.getRegistry(host, port);
         ClientRegistry registry_stub = (ClientRegistry) registry.lookup("RegistryService");
@@ -312,6 +444,11 @@ public class ChatClient implements ChatClientCallback {
         }
     }
 
+    /**
+     * Ferme proprement la connexion du client.
+     * Appelle la méthode disconnect du serveur, affiche un message et termine l'application.
+     * Cette méthode est appelée par l'IHM lors de la fermeture de la fenêtre.
+     */
     public void close() {
         try {
             if (tchatService != null && clientId != -1) {
@@ -327,6 +464,19 @@ public class ChatClient implements ChatClientCallback {
         }
     }
 
+    /**
+     * Point d'entrée principal du client.
+     * Analyse les arguments de ligne de commande pour déterminer le mode (IHM ou console).
+     * Lance l'interface graphique si --ihm est présent ou si les arguments sont insuffisants.
+     * Sinon, lance le mode console avec menu interactif.
+     * 
+     * @param args arguments en ligne de commande : 
+     *             - args[0] : hostname du serveur
+     *             - args[1] : port du registre RMI
+     *             - args[2] : pseudo (mode console uniquement)
+     *             - args[3] : ID client (0 pour nouveau, sinon ID existant)
+     *             - --ihm : option pour forcer le mode graphique
+     */
     public static void main(String [] args) {
 		try {
             boolean useIHM = false;
