@@ -17,30 +17,99 @@ import common.ChatMessage;
 import client.ChatClient;
 import interfaces.server.ChatService;
 
+/**
+ * Fenêtre principale de l'interface graphique du chat.
+ * Cette fenêtre Swing affiche la liste des conversations, l'historique des messages
+ * et permet l'envoi de messages directs ou généraux.
+ * 
+ * Architecture de l'IHM :
+ * - Panneau gauche : liste des conversations avec compteurs de messages non lus
+ * - Panneau droit : historique de la conversation sélectionnée + champ de saisie
+ * 
+ * Fonctionnalités principales :
+ * - Affichage de toutes les conversations (GENERAL et privées)
+ * - Création de nouvelles conversations privées par saisie d'ID
+ * - Envoi de messages (général ou direct selon la conversation active)
+ * - Réception de messages en temps réel via callbacks
+ * - Gestion des messages lus/non lus avec compteurs visuels
+ * - Style différencié pour les messages envoyés (alignés à droite, bleu)
+ * - Fermeture propre avec déconnexion RMI
+ * 
+ * Variables membres :
+ * - client : référence au client connecté (ChatClient)
+ * - tchatService : service RMI distant pour l'envoi de messages et récupération d'historiques
+ * - currentConv : ID de la conversation actuellement sélectionnée (null si aucune)
+ * - Composants IHM : tchatArea, messageField, convListModel, convList, tchatTitleLabel
+ * 
+ * @see ChatClient
+ * @see interfaces.server.ChatService
+ * @see common.ChatMessage
+ */
 public class ChatFrame extends JFrame {
+    /** Référence au client connecté */
     private ChatClient client;
+    
+    /** Service RMI distant pour les opérations de chat */
     private ChatService tchatService;
+    
+    /** ID de la conversation actuellement sélectionnée ("GENERAL" ou "id1-id2") */
     private String currentConv = null;
 
     // Composants IHM
+    /** Zone d'affichage stylisée des messages (JTextPane pour formatage avancé) */
     private JTextPane tchatArea = new JTextPane();
+    
+    /** Champ de saisie du message à envoyer */
     private JTextField messageField = new JTextField();
+    
+    /** Modèle de données pour la liste des conversations */
     private DefaultListModel<ConversationItem> convListModel = new DefaultListModel<>();
+    
+    /** Liste visuelle des conversations */
     private JList<ConversationItem> convList = new JList<>(convListModel);
+    
+    /** Label affichant le titre de la conversation active */
     private JLabel tchatTitleLabel = new JLabel("Sélectionnez une conversation");
 
+    /**
+     * Classe interne représentant un élément de conversation dans la liste.
+     * Encapsule l'ID de la conversation et son compteur de messages non lus.
+     * 
+     * Variables membres :
+     * - id : identifiant de la conversation ("GENERAL" ou "id1-id2")
+     * - unreadCount : nombre de messages non lus dans cette conversation
+     */
     private class ConversationItem {
-        private String id;        // "GENERAL" ou "1-2"
+        /** Identifiant de la conversation */
+        private String id; // "GENERAL" ou "id1-id2"
+        
+        /** Nombre de messages non lus */
         private int unreadCount;
 
+        /**
+         * Constructeur de ConversationItem.
+         * 
+         * @param id l'identifiant de la conversation
+         * @param unreadCount le nombre de messages non lus
+         */
         public ConversationItem(String id, int unreadCount) {
             this.id = id;
             this.unreadCount = unreadCount;
         }
 
+        /**
+         * Retourne l'ID de la conversation.
+         * 
+         * @return l'identifiant de la conversation
+         */
         public String getId() { return id; }
 
-        // C'est cette méthode que le JList appelle pour afficher le texte
+        /**
+         * Retourne la représentation textuelle de l'élément pour affichage dans la JList.
+         * Ajoute le compteur de messages non lus si > 0.
+         * 
+         * @return le texte à afficher (ex: "GENERAL (2 messages non lus)")
+         */
         @Override
         public String toString() {
             if (unreadCount <= 0) return id;
@@ -48,15 +117,41 @@ public class ChatFrame extends JFrame {
             return id + " (" + unreadCount + s + ")";
         }
 
+        /**
+         * Définit le nombre de messages non lus.
+         * 
+         * @param n le nouveau nombre de messages non lus
+         */
         public void setUnreadCount(int n) {
             this.unreadCount = n;
         }
 
+        /**
+         * Retourne le nombre de messages non lus.
+         * 
+         * @return le compteur de messages non lus
+         */
         public int getUnreadCount() {
             return unreadCount;
         }
     }
 
+    /**
+     * Constructeur de la fenêtre principale du chat.
+     * Initialise l'interface graphique, configure les gestionnaires d'événements,
+     * charge les conversations et l'historique initial.
+     * 
+     * Séquence d'initialisation :
+     * 1. Configuration de la fenêtre (titre, taille, fermeture)
+     * 2. Construction de l'interface (layout, composants)
+     * 3. Configuration des écouteurs (sélection, envoi, fermeture)
+     * 4. Chargement des conversations depuis le serveur
+     * 5. Affichage de la fenêtre
+     * 
+     * @param client le client connecté
+     * @param tchatService le service RMI distant
+     * @throws NullPointerException si client ou tchatService est null
+     */
     public ChatFrame(ChatClient client, ChatService tchatService) {
         this.client = client;
         this.tchatService = tchatService;
@@ -79,6 +174,20 @@ public class ChatFrame extends JFrame {
         messageField.setEnabled(false); // Désactive le champ au début pour éviter d'envoyer des messages sans conversation sélectionnée
     }
 
+    /**
+     * Construit l'interface graphique de la fenêtre.
+     * 
+     * Organisation de l'interface :
+     * - JSplitPane (séparateur redimensionnable)
+     *   - Gauche : liste des conversations + bouton d'ajout
+     *   - Droite : titre + zone de messages + champ de saisie
+     * 
+     * Configuration des composants :
+     * - tchatArea : non éditable, auto-scroll, formatage stylisé
+     * - messageField : champ de saisie avec listener sur ENTER
+     * - convList : sélection unique, auto-rafraîchissement
+     * - Fenêtre : taille 900x600, centrée
+     */
     private void initLayout() {
         setLayout(new BorderLayout(5, 5));
 
@@ -125,6 +234,19 @@ public class ChatFrame extends JFrame {
         addConvBtn.addActionListener(e -> showAddConvDialog());
     }
 
+    /**
+     * Ajoute un message stylisé à la zone d'affichage.
+     * Les messages envoyés par l'utilisateur sont alignés à droite en bleu,
+     * les autres messages sont alignés à gauche en noir.
+     * 
+     * Style appliqué :
+     * - Message de l'utilisateur : aligné à droite, couleur bleue
+     * - Message d'autrui : aligné à gauche, couleur noire
+     * 
+     * @param senderName le nom de l'expéditeur
+     * @param message le contenu du message
+     * @param isMe true si le message a été envoyé par l'utilisateur connecté
+     */
     private void appendStyledMessage(String senderName, String message, boolean isMe) {
         StyledDocument doc = tchatArea.getStyledDocument();
 
@@ -147,6 +269,22 @@ public class ChatFrame extends JFrame {
         }
     }
 
+    /**
+     * Affiche une boîte de dialogue pour créer une nouvelle conversation privée.
+     * L'utilisateur saisit l'ID du client cible, puis :
+     * 1. Validation de l'ID (entier positif, différent de l'utilisateur)
+     * 2. Génération de l'ID de conversation normalisé (min-max)
+     * 3. Ajout à la liste si non existante
+     * 4. Chargement de l'historique
+     * 
+     * Gestion des erreurs :
+     * - ID invalide (non numérique) : message d'erreur
+     * - ID identique à l'utilisateur : avertissement
+     * - Conversation déjà existante : sélection directe
+     * 
+     * @see #refreshConversations()
+     * @see #loadHistory(String)
+     */
     // Création de conversation
     private void showAddConvDialog() {
         String targetIdStr = JOptionPane.showInputDialog(this, 
@@ -194,6 +332,26 @@ public class ChatFrame extends JFrame {
         }
     }
 
+    /**
+     * Envoie le message saisi dans le champ de texte.
+     * 
+     * Logique d'envoi :
+     * - Conversation "GENERAL" : appel à sendGeneralMessage()
+     * - Conversation privée : extraction de l'ID cible, appel à sendDirectMessage()
+     * 
+     * Après envoi réussi :
+     * - Vidage du champ de saisie
+     * - Affichage local du message envoyé (style bleu, aligné à droite)
+     * 
+     * Gestion des erreurs :
+     * - Message vide : ignoré silencieusement
+     * - Aucune conversation sélectionnée : ignoré
+     * - RemoteException : affichage du message d'erreur + alerte utilisateur
+     * 
+     * @see #extractTargetId(String)
+     * @see interfaces.server.ChatService#sendGeneralMessage(int, String)
+     * @see interfaces.server.ChatService#sendDirectMessage(int, int, String)
+     */
     // --- LOGIQUE ---
 
     private void sendMessage() {
@@ -215,6 +373,26 @@ public class ChatFrame extends JFrame {
         }
     }
 
+    /**
+     * Callback appelé lors de la réception d'un message direct.
+     * Cette méthode est invoquée par le serveur RMI via ChatClient.
+     * 
+     * Comportement :
+     * - Si la conversation concernée est active : affichage immédiat du message avec préfixe [NOUVEAU]
+     * - Si la conversation est inactive : incrémentation du compteur de messages non lus
+     * 
+     * Synchronisation du curseur :
+     * - Lors de l'affichage, appelle getHistory() pour marquer les messages comme lus côté serveur
+     * 
+     * Thread-safety :
+     * - Utilise SwingUtilities.invokeLater() pour modifier l'IHM depuis le thread RMI
+     * 
+     * @param convId l'ID de la conversation (format "id1-id2")
+     * @param sender le nom de l'expéditeur
+     * @param message le contenu du message
+     * @see #updateUnreadInList(String)
+     * @see #appendStyledMessage(String, String, boolean)
+     */
     public void onMessageReceived(String convId, String sender, String message) {
         SwingUtilities.invokeLater(() -> {
             if (currentConv != null && currentConv.equals(convId)) {
@@ -234,6 +412,25 @@ public class ChatFrame extends JFrame {
         });
     }
 
+    /**
+     * Callback appelé lors de la réception d'un message général (broadcast).
+     * Cette méthode est invoquée par le serveur RMI via ChatClient.
+     * 
+     * Comportement :
+     * - Si l'utilisateur est sur la conversation "GENERAL" : affichage immédiat avec préfixe [NOUVEAU]
+     * - Sinon : incrémentation du compteur de messages non lus pour "GENERAL"
+     * 
+     * Synchronisation du curseur :
+     * - Lors de l'affichage, appelle getHistory() pour marquer les messages comme lus côté serveur
+     * 
+     * Thread-safety :
+     * - Utilise SwingUtilities.invokeLater() pour modifier l'IHM depuis le thread RMI
+     * 
+     * @param sender le nom de l'expéditeur du message général
+     * @param message le contenu du message
+     * @see #updateUnreadInList(String)
+     * @see #appendStyledMessage(String, String, boolean)
+     */
     public void onGeneralMessageReceived(String sender, String message) {
         SwingUtilities.invokeLater(() -> {
             // Si l'utilisateur est actuellement sur la conversation "GENERAL"
@@ -255,6 +452,21 @@ public class ChatFrame extends JFrame {
         });
     }
 
+    /**
+     * Met à jour le compteur de messages non lus pour une conversation donnée.
+     * Si la conversation n'existe pas encore dans la liste, elle est créée avec unreadCount=1.
+     * 
+     * Logique :
+     * - Recherche de l'élément correspondant à convId dans la liste
+     * - Si trouvé : incrémentation du compteur + rafraîchissement visuel de la JList
+     * - Si non trouvé : création d'un nouvel élément avec unreadCount=1
+     * 
+     * Thread-safety :
+     * - Doit être appelée depuis le thread Swing (EDT)
+     * 
+     * @param convId l'ID de la conversation à mettre à jour ("GENERAL" ou "id1-id2")
+     * @see ConversationItem#setUnreadCount(int)
+     */
     private void updateUnreadInList(String convId) {
         boolean found = false;
         for (int i = 0; i < convListModel.size(); i++) {
@@ -273,6 +485,26 @@ public class ChatFrame extends JFrame {
         convList.repaint();
     }
 
+    /**
+     * Charge et affiche l'historique de la conversation actuelle.
+     * Récupère tous les messages de la conversation depuis le serveur,
+     * marque les nouveaux messages avec le préfixe [NOUVEAU] basé sur le curseur de lecture.
+     * 
+     * Séquence d'exécution :
+     * 1. Récupération du curseur de lecture (dernier message lu)
+     * 2. Récupération de l'historique complet (getHistory marque aussi comme lu)
+     * 3. Vidage de la zone de texte
+     * 4. Affichage de tous les messages avec style approprié
+     * 5. Scroll automatique vers le bas
+     * 6. Activation du champ de saisie
+     * 
+     * Détection des nouveaux messages :
+     * - Message avec id > lastReadCursor : préfixe [NOUVEAU]
+     * 
+     * @see interfaces.server.ChatService#getCursor(int, String)
+     * @see interfaces.server.ChatService#getHistory(int, String)
+     * @throws RemoteException si une erreur RMI survient
+     */
     private void loadHistory() {
         if (currentConv == null) return;
 
@@ -297,6 +529,24 @@ public class ChatFrame extends JFrame {
         }
     }
 
+    /**
+     * Rafraîchit la liste des conversations depuis le serveur.
+     * Récupère toutes les conversations avec leurs compteurs de messages non lus.
+     * 
+     * Logique de synchronisation :
+     * 1. Récupération de la liste depuis le serveur (getConversationsList)
+     * 2. Vidage de la liste locale
+     * 3. Ajout de toutes les conversations du serveur
+     * 4. Vérification de la conversation actuelle :
+     *    - Si elle existe côté serveur : sélection automatique
+     *    - Si elle n'existe pas (nouvelle conversation sans message) : ajout manuel avec unreadCount=0
+     * 
+     * Cas particulier :
+     * - Conversation nouvellement créée mais sans messages : ajoutée manuellement pour rester visible
+     * 
+     * @see interfaces.server.ChatService#getConversationsList(int)
+     * @throws RemoteException si une erreur RMI survient
+     */
     private void refreshConversations() {
         try {
             Map<String, Integer> convs = tchatService.getConversationsList(client.getClientId());
@@ -330,6 +580,16 @@ public class ChatFrame extends JFrame {
         };
     }
 
+    /**
+     * Configure les gestionnaires d'événements de l'interface.
+     * 
+     * Événements gérés :
+     * 1. Sélection de conversation : charge l'historique, marque comme lu
+     * 2. Envoi de message : appuie sur ENTER dans le champ de saisie
+     * 3. Fermeture de fenêtre : déconnexion RMI propre
+     * 
+     * @throws RemoteException si une erreur RMI survient lors des listeners
+     */
     private void setupEvents() {
         // Changer de conversation au clic dans la liste
         convList.addListSelectionListener(e -> {
